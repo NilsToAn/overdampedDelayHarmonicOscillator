@@ -5,12 +5,12 @@ tensor = torch.tensor
 
 
 def get_pos(
-        num_particle=10000,
-        max_t=5,
-        dt=1e-3,
-        k=10,
-        tau=0,
-        D = 1e-6,
+        num_particle,
+        max_t,
+        dt,
+        k,
+        tau,
+        D,
         F=np.vectorize(lambda t: 0)):
     """
 
@@ -26,6 +26,17 @@ def get_pos(
     Returns
     -------
     pos: torch.tensor
+    
+    Example
+    -------
+    get_pos(
+        num_particle=10000,
+        max_t=5,
+        dt=1e-3,
+        k=10,
+        tau=0,
+        D = 1e-6,
+        F=np.vectorize(lambda t: 0))
     """
     N = int(max_t / dt)
     n_tau = int(tau / dt)
@@ -56,14 +67,14 @@ def get_pos(
     return pos
 
 def get_pos_mirror(
-        num_particle=10000,
-        max_t=5,
-        dt=1e-3,
-        k=10,
-        tau=0,
-        D = 1e-6,
-        F=np.vectorize(lambda t: 0),
-        x_m=1.5e-3):
+        num_particle,
+        max_t,
+        dt,
+        k,
+        tau,
+        D,
+        x_m,
+        F=np.vectorize(lambda t: 0)):
     """
 
     Parameters
@@ -78,6 +89,18 @@ def get_pos_mirror(
     Returns
     -------
     pos: torch.tensor
+    
+    Example
+    -------
+    get_pos_mirror(
+        num_particle=10000,
+        max_t=5,
+        dt=1e-3,
+        k=10,
+        tau=0,
+        D = 1e-6,
+        x_m=1.5e-3,
+        F=np.vectorize(lambda t: 0))
     """
     N = int(max_t / dt)
     n_tau = int(tau / dt)
@@ -109,7 +132,14 @@ def get_pos_mirror(
 
 
 
-def get_mean_std(tau, k, F=lambda i: 0, num_particle=10000, max_t=5, dt=1e-3, D=1e-6, mirrored = False):
+def get_mean_std(tau,
+                 k,
+                 num_particle,
+                 max_t,
+                 dt,
+                 D,
+                 F=lambda i: 0,
+                 mirrored = False):
     """
 
     Parameters
@@ -124,6 +154,17 @@ def get_mean_std(tau, k, F=lambda i: 0, num_particle=10000, max_t=5, dt=1e-3, D=
     Returns
     -------
     mean, u_mean, std, u_std: torch.tensor,torch.tensor,torch.tensor,torch.tensor
+    
+    Example
+    -------
+    get_mean_std(tau,
+                 k,
+                 num_particle=10000,
+                 max_t=5,
+                 dt=1e-3,
+                 D=1e-6,
+                 F=lambda i: 0,
+                 mirrored = False)
     """
     F = np.vectorize(F)
     if mirrored:
@@ -171,12 +212,12 @@ class FokkerPlankCalculator:
     
     def get_G(self,l_data, l_data_, ts, F_data, max_t):
         dt = max_t / len(l_data_)
-        w = self.get_w(l_data,l_data_)
+        w = self.get_w(l_data,l_data_, max_t)
         mu = self.get_M(l_data, F_data, ts, max_t)
         
         def int3(t, dt):
             nt = int(t / dt)
-            return np.sum(F_data[:nt] * np.diff(l_data[nt::-1])) * dt
+            return np.sum(F_data[:nt] * np.diff(l_data[nt::-1])/dt) * dt
 
         int3 = np.vectorize(int3)
         print(len(int3(ts, dt)[:-1]))
@@ -202,8 +243,9 @@ class FokkerPlankCalculator:
         int5 = np.vectorize(int5)
         return int5(ts, dt)
     
-    def get_w(self,l_data,l_data_):
-        return - np.diff(l_data)/l_data_
+    def get_w(self,l_data,l_data_,max_t):
+        dt = max_t/len(l_data_)
+        return - np.diff(l_data)/l_data_/dt
     
     # def get_D(self,l_data, l_data_, ts, max_t, D):
     #     dt = max_t / len(l_data)
@@ -396,12 +438,12 @@ def damped_harmonic_oszillator(
 
 
 def time_delayed_harmonic(
-        x0 = 0,
-        max_t=5000,
-        dt=5,
-        k=0.005,
-        tau=0,
-        gamma = 1,
+        x0,
+        max_t,
+        dt,
+        k,
+        tau,
+        gamma,
         F=np.vectorize(lambda t: 0)):
     """
 
@@ -417,6 +459,17 @@ def time_delayed_harmonic(
     Returns
     -------
     pos: torch.tensor
+    
+    Example
+    -------
+    time_delayed_harmonic(
+        x0 = 0,
+        max_t=5000,
+        dt=5,
+        k=0.005,
+        tau=0,
+        gamma = 1,
+        F=np.vectorize(lambda t: 0))
     """
     N = int(max_t / dt)
     n_tau = int(tau / dt)
@@ -439,7 +492,26 @@ def time_delayed_harmonic(
 
 
 def get_pos_with_border(
-    border = 8e-4,**args):
+    border,
+    **args):
+    """
+
+    Parameters
+    ----------
+    border:float
+    **args: dict
+
+
+    Returns
+    -------
+    pos: torch.tensor
+    
+    Example
+    -------
+    get_pos_with_border(
+        border = 8e-4,
+        **args)
+    """
     
     pos = get_pos(**args)
     for i in range(pos.shape[0]):
