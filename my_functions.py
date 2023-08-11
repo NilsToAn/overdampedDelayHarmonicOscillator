@@ -3,6 +3,10 @@ import numpy as np
 from scipy.special import factorial
 tensor = torch.tensor
 
+# only for bullerjahn function
+import matplotlib.pyplot as plt
+from scipy.special import factorial, lambertw, erf
+
 
 def get_pos(
         num_particle,
@@ -42,7 +46,7 @@ def get_pos(
     n_tau = int(tau / dt)
     dims = (N, num_particle, 1)
 
-    pos = torch.empty(dims, dtype=torch.float16)
+    pos = torch.empty(dims, dtype=torch.float) # dtype=torch.float
     random_force = np.sqrt(2*D)* torch.normal(0, 1, dims)
 
     # without other forces
@@ -106,7 +110,7 @@ def get_pos_mirror(
     n_tau = int(tau / dt)
     dims = (N, num_particle, 1)
 
-    pos = torch.empty(dims, dtype=torch.float16)
+    pos = torch.empty(dims, dtype=torch.float) #dtype=torch.float16
     random_force = np.sqrt(2*D)* torch.normal(0, 1, dims)
 
     # without other forces
@@ -183,10 +187,10 @@ def get_mean_std(tau,
 
 class FokkerPlankCalculator:
     def __init__(self):
-        def l(k, tau, t, max_p=20):
+        def l(k, tau, t, max_p=40):
             i = np.arange(0, max_p, 1)
             return np.sum((-k) ** i / factorial(i) * (t - i * tau) ** i * np.heaviside(t - i * tau, 1))
-        self.l = np.vectorize(l)
+        self.l = np.vectorize(l, )
 
     def get_v_n(self,l_data, ts, max_t, s=1):
         dt = max_t / len(l_data)
@@ -329,6 +333,124 @@ class FokkerPlankCalculator:
     #         return 2*np.sum(D_data[:nt]/l_data_[:nt]**2)*dt
     #     int2 = np.vectorize(int2)
     #     return l_data_**2*int2(ts_,dt)
+    
+    
+def plot_bullerjahn_analysis(max_t, dt, tau, k, D,b, sim_time_s, sim_res,sim_time, sim_res_num, forces, save_run, use_eq_D = False):
+    my_fpc = FokkerPlankCalculator()
+    s = np.sqrt(2*D)
+
+    ts_all = np.arange(0, max_t+dt, dt)
+    ts = ts_all[::2]
+    ts_ = ts_all[1::2]
+
+
+    if tau > 0:
+        max_p = int(max_t / tau) + 1
+        print(max_p)
+        l_data_all = my_fpc.l(k, tau, ts_all, max_p=max_p)
+    else:
+        l_data_all = np.exp(-k*ts_all)
+    l_data = l_data_all[::2]
+    l_data_ = l_data_all[1::2]
+
+    w = my_fpc.get_w(l_data, l_data_, max_t)
+    D_t_raw = my_fpc.get_D(l_data, l_data_, ts, max_t,D)
+    if use_eq_D:
+        D_t = D
+    else:
+        D_t = D_t_raw #D #D_t_raw #D#np.mean(D_t_raw)
+
+    fig, axs = plt.subplots(1,2, figsize=(8, 4))
+    axs[0].plot(ts_,w, max_t)
+    axs[0].set_ylim(-30,30)
+    axs[0].set_title(r"$\omega_\tau(t)$")
+    axs[0].set_xlabel("Time")
+    axs[0].set_ylabel(r"$\omega_\tau(t)$")
+
+
+    axs[1].plot(ts_,D_t_raw)
+    axs[1].set_ylim(-1e-5,1e-5)
+    axs[1].set_title(r"$D_\tau(t)$")
+    axs[1].set_xlabel("Time")
+    axs[1].set_ylabel(r"$D_\tau(t)$")
+    fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    if save_run:
+        plt.savefig(pic_path/f'omega_diff.pdf')
+
+    bullerjahn = {}
+    for prot in sim_res:
+        my_F = np.vectorize(forces[prot])  #lambda i: 0 
+        F_data = my_F(ts)
+        F_data_ = my_F(ts_)
+        G = my_fpc.get_G(l_data,l_data_,ts, F_data, max_t)
+
+        mu = my_fpc.get_M(l_data_,F_data_, ts_, max_t)
+
+        var = my_fpc.get_v_n(l_data_, ts_, max_t, s = s)
+
+        d_prefactor = 4 # Bullerjahn 2, in approx 4
+
+        # TODO: überprüfen !!!!! vorzeichen G ? -> Müsste so stimme
+        j = -(w*b-G-d_prefactor*D_t*(b-mu)/var) * 1 / np.sqrt(2*np.pi*var) * np.exp(-(b-mu)**2/(2*var))
+
+        S = 1/2*(1+erf( (b-mu)/np.sqrt(2*var)))
+
+        kap = j/S
+
+        bullerjahn[prot] = kap
+
+
+        fig, axs = plt.subplots(2,3, figsize=(12, 8))
+        axs[0,0].plot(ts_,G)
+        axs[0,0].set_title(r"$G$")
+        axs[0,0].set_ylim(0.9*np.sort(G)[11], 1.1*np.sort(G)[-11])
+        axs[0,0].set_xlabel("Time")
+        axs[0,0].set_ylabel("G")
+
+        axs[0,1].plot(ts_,mu)
+        axs[0,1].set_title(r"$\mu$")
+        axs[0,1].set_xlabel("Time")
+        axs[0,1].set_ylabel("$\mu$")
+
+        axs[0,2].plot(ts_,var)
+        axs[0,2].set_title(r"$Var$")
+        axs[0,2].set_xlabel(r"Time")
+        axs[0,2].set_ylabel(r"$\sigma^2$")
+
+        #axs[1,2].plot(ts_,(1-S))
+        #axs[1,2].set_title(r"$(1-S)$")
+        #axs[1,2].plot(sim_time, sim_res[prot])
+
+        axs[1,0].plot(ts_,j)
+        axs[1,0].set_ylim(np.sort(j)[4]*0.9, 1.1*np.sort(j)[-4])
+        axs[1,0].set_title(r"$J$")
+        axs[1,0].set_xlabel(r"Time")
+        axs[1,0].set_ylabel(r"$j$")
+
+        axs[1,1].plot(ts_,S)
+        axs[1,1].plot(sim_time-tau, sim_res_num[prot])
+        axs[1,1].set_title(r"$S$")
+        axs[1,1].set_xlabel(r"Time")
+        axs[1,1].set_ylabel(r"$S$")
+
+
+        axs[1,2].plot(sim_time_s-tau, sim_res[prot], label='Simulation')
+
+        min_y = min(np.sort(kap)[100]*0.9, sim_res[prot].min()*0.9)
+        max_y = max(np.sort(kap)[-100]*1.1, sim_res[prot].max()*1.1)
+        axs[1,2].plot(ts_, kap, label='Bullerjahn')
+
+        axs[1,2].set_title(r"$\kappa$")
+        axs[1,2].legend()
+        axs[1,2].set_xlabel(r"Time")
+        axs[1,2].set_ylabel(r"$\kappa$")
+        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.tight_layout()
+        if save_run:
+            plt.savefig(pic_path/f'escape_rate_{prot}.pdf')
+    return bullerjahn    
+
 
 def get_approx_freq(tau,k):
     return 1/tau*(np.pi/3-1/3*1/(tau*k)+np.sqrt((1/3*1/(k*tau)+np.pi/6)**2-1/3*np.pi/(k*tau)+2/3))
@@ -418,9 +540,9 @@ def damped_harmonic_oszillator(
     
     dims = (N, 1)
 
-    pos = torch.empty(dims, dtype=torch.float16)
-    vel = torch.empty(dims, dtype=torch.float16)
-    acc = torch.empty(dims, dtype=torch.float16)
+    pos = torch.empty(dims, dtype=torch.float) #dtype=torch.float16
+    vel = torch.empty(dims, dtype=torch.float)
+    acc = torch.empty(dims, dtype=torch.float)
 
    
 
@@ -476,8 +598,8 @@ def time_delayed_harmonic(
 
     dims = (N, 1)
 
-    pos = torch.empty(dims, dtype=torch.float16)
-    vel = torch.empty(dims, dtype=torch.float16)
+    pos = torch.empty(dims, dtype=torch.float)# dtype=torch.float16
+    vel = torch.empty(dims, dtype=torch.float)
 
     # Set inital values
     vel[:n_tau + 1] = torch.zeros((n_tau + 1, 1))

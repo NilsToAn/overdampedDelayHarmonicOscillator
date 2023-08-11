@@ -1,8 +1,8 @@
-name: tau0
+name: tau015
 border: 0.002
 dt: 0.001
 k: 3
 max_t: 2
 num_particle: 40000
-tau: 0
+tau: 0.15
 D: 1e-6
