@@ -8,6 +8,13 @@ import matplotlib.pyplot as plt
 from scipy.special import factorial, lambertw, erf
 
 
+# Changed initial conditions (Right?)
+# vel[:n_tau+1] = ....
+# pos[:n_tau+1] = ....
+# To 
+# vel[:n_tau] = ....
+# pos[:n_tau] = ....
+
 def get_pos(
         num_particle,
         max_t,
@@ -44,6 +51,7 @@ def get_pos(
     """
     N = int(max_t / dt)
     n_tau = int(tau / dt)
+    print(n_tau)
     dims = (N, num_particle, 1)
 
     pos = torch.empty(dims, dtype=torch.float) # dtype=torch.float
@@ -53,8 +61,8 @@ def get_pos(
     vel = random_force * np.sqrt(1 / dt)
 
     # Set inital values
-    vel[:n_tau + 1] = torch.zeros((n_tau + 1, num_particle, 1))
-    pos[:n_tau + 1] = torch.zeros((n_tau + 1, num_particle, 1))
+    vel[:n_tau] = torch.zeros((n_tau, num_particle, 1))
+    pos[:n_tau] = torch.zeros((n_tau, num_particle, 1))
     
     #print(tau)
     #print('-----')
@@ -117,8 +125,8 @@ def get_pos_mirror(
     vel = random_force * np.sqrt(1 / dt)
 
     # Set inital values
-    vel[:n_tau + 1] = torch.zeros((n_tau + 1, num_particle, 1))
-    pos[:n_tau + 1] = torch.ones((n_tau + 1, num_particle, 1))*-x_m
+    vel[:n_tau] = torch.zeros((n_tau, num_particle, 1))
+    pos[:n_tau] = torch.ones((n_tau, num_particle, 1))*-x_m
     
     #print(tau)
     #print('-----')
@@ -440,6 +448,8 @@ def plot_bullerjahn_analysis(max_t, dt, tau, k, D,b, sim_time_s, sim_res,sim_tim
         min_y = min(np.sort(kap)[100]*0.9, sim_res[prot].min()*0.9)
         max_y = max(np.sort(kap)[-100]*1.1, sim_res[prot].max()*1.1)
         axs[1,2].plot(ts_, kap, label='Bullerjahn')
+        
+        axs[1,2].set_ylim(min_y,max_y)
 
         axs[1,2].set_title(r"$\kappa$")
         axs[1,2].legend()
@@ -602,8 +612,8 @@ def time_delayed_harmonic(
     vel = torch.empty(dims, dtype=torch.float)
 
     # Set inital values
-    vel[:n_tau + 1] = torch.zeros((n_tau + 1, 1))
-    pos[:n_tau + 1] = torch.full((n_tau + 1, 1), x0)
+    vel[:n_tau] = torch.zeros((n_tau, 1))
+    pos[:n_tau] = torch.full((n_tau, 1), x0)
 
     for i in range(n_tau + 1, N):
         pos[i] = pos[i - 1] + vel[i - 1] * dt
