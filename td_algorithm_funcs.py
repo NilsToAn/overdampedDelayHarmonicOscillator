@@ -20,10 +20,13 @@ def get_prop(x_s, force,D, dt, dx):
     prop = expm(R*dt, )
     return prop
 
-def get_prop_abs(x_s, force, D,dt,dx, N_border):
+def get_prop_abs(x_s, force, D,dt,dx, N_border=None):
     # x(t-tau), x(t), res
     N_x = len(x_s)
     R_abs = np.zeros(( N_x,N_x, N_x))
+    
+    if N_border is None:
+        N_border = N_x-1
     
     F = force(x_s)
     lp = D / dx**2 * np.exp((F*dx/D)/2)  # r_i->i+1
@@ -95,6 +98,7 @@ def get_rate(hists,x_s, dt,total_props=None):
     if total_props is None:
         sur_l = np.sum(hists[:,x_s <= 0],axis = 1)/np.sum(hists[0])
         sur_r = np.sum(hists[:,x_s > 0],axis = 1)/np.sum(hists[0])
+        print(sur_l+sur_r)
     else:
         sur_l = np.sum(hists[:,x_s <= 0],axis = 1)/np.sum(hists[0]) * np.cumprod(total_props[1:])
         sur_r = np.sum(hists[:,x_s > 0],axis = 1)/np.sum(hists[0]) * np.cumprod(total_props[1:])
@@ -125,7 +129,7 @@ def get_hists_v4(N_t, N_x, ntau, i_zero, prop, thresh =  1e-7, return_final_stat
 
         total_probs = a_s*probs[states].todense()
         #print(total_probs.shape)
-        unaltered_props.append(np.sum(total_probs))
+        unaltered_props.append(np.nansum(total_probs))
         probs.clear()
         
         new_state_list = []
@@ -146,10 +150,11 @@ def get_hists_v4(N_t, N_x, ntau, i_zero, prop, thresh =  1e-7, return_final_stat
 
         #states = uni
         states = np.concatenate(new_state_list)
-        total_prob.append(np.sum(probs))
-        probs = probs/np.sum(probs)
+        totalsum = probs.sum()
+        total_prob.append(totalsum)
+        probs = probs/totalsum
 
-        hists[i] = [np.sum(probs[states[states//(N_x**ntau) == i]]) for i in range(N_x)] 
+        hists[i] = [probs[states[states//(N_x**ntau) == i]].sum() for i in range(N_x)] 
     print('Total number of final states:', states.shape)
     if return_final_states:
         return hists, unaltered_props, total_prob, new_states
@@ -165,6 +170,7 @@ def get_prop_v2(x_s, force,D, dt, dx):
     F = force(half_x_s)
     lp = D / dx**2 * np.exp((F*dx/D)/2)  # r_i->i+1
     ln = D / dx**2 * np.exp(-(F*dx/D)/2)  # r_i+1->i
+    
 
     R[:,0,0] = -lp
     R[:,-1,-1] = -ln
@@ -172,22 +178,43 @@ def get_prop_v2(x_s, force,D, dt, dx):
     R[:,np.arange(0,N_x-1),np.arange(1,N_x)] = ln[:,None]
     R[:,np.arange(1,N_x),np.arange(0,N_x-1)] = lp[:,None]
     prop = expm(R*dt, )
+    if np.any(np.isnan(prop)):
+        print('CAREFUL: nan in prop, maybe because of to high values in potential')
     return prop
 
-def get_prop_abs_v2(x_s, force, D,dt,dx, N_border):
+def get_prop_abs_v2(x_s, force, D,dt,dx, N_border=None, side = 'r'):
     # x(t-tau), x(t), res
     N_x = len(x_s)
     half_x_s = np.arange(x_s[0],x_s[-1]+dx/4,dx/2)
+    
+    
     
     R_abs = np.zeros(( len(half_x_s),N_x, N_x))
     
     F = force(half_x_s)
     lp = D / dx**2 * np.exp((F*dx/D)/2)  # r_i->i+1
     ln = D / dx**2 * np.exp(-(F*dx/D)/2)  # r_i+1->i
-    
-    R_abs[:,0,0] = -lp
-    R_abs[:,np.arange(1,N_border+1),np.arange(1,N_border+1)] = -(lp[:,None]+ln[:,None]) # -(r_i->i+1 + r_i->i-1) ????
-    R_abs[:,np.arange(0,N_border),np.arange(1,N_border+1)] = ln[:,None]
-    R_abs[:,np.arange(1,N_border),np.arange(0,N_border-1)] = lp[:,None]
+    if side == 'r':
+        if N_border is None:
+            N_border = N_x
+        R_abs[:,0,0] = -lp
+        R_abs[:,np.arange(1,N_border),np.arange(1,N_border)] = -(lp[:,None]+ln[:,None]) # -(r_i->i+1 + r_i->i-1) ????
+        R_abs[:,np.arange(0,N_border-1),np.arange(1,N_border)] = ln[:,None]
+        R_abs[:,np.arange(1,N_border),np.arange(0,N_border-1)] = lp[:,None]
+    elif side == 'l':
+        if N_border is None:
+            N_border = 0
+        R_abs[:,-1,-1] = -ln
+        R_abs[:,np.arange(N_border,N_x-1),np.arange(N_border,N_x-1)] = -(lp[:,None]+ln[:,None]) # -(r_i->i+1 + r_i->i-1) ????
+        R_abs[:,np.arange(N_border,N_x-1),np.arange(N_border+1,N_x)] = ln[:,None]
+        R_abs[:,np.arange(N_border+1,N_x),np.arange(N_border,N_x-1)] = lp[:,None]
+    elif side == 'lr':
+        if N_border is not None:
+            print('for lr N_border is ignored')
+        R_abs[:,np.arange(0,N_x),np.arange(0,N_x)] = -(lp[:,None]+ln[:,None]) # -(r_i->i+1 + r_i->i-1) ????
+        R_abs[:,np.arange(0,N_x-1),np.arange(1,N_x)] = ln[:,None]
+        R_abs[:,np.arange(1,N_x),np.arange(0,N_x-1)] = lp[:,None]
     prop_abs = expm(R_abs*dt, )
+    if np.any(np.isnan(prop_abs)):
+        print('CAREFUL: nan in prop, maybe because of to high values in potential')
     return prop_abs
