@@ -109,16 +109,19 @@ def get_dyn_v2(R, i_zero, N_t,N_x, ntau, end_states):
     
     return p, one_time_p
 
-def get_non_delayed_prop(x_s, force, D,dt,dx, N_border=None):
+def get_non_delayed_prop(x_s, force, D,dt,dx, N_border=None, Fp = None, Fl = None):
     N_x = len(x_s)
+    mx_s = np.arange(x_s[0]-dx/2,x_s[-1]+dx/2+dx/4,dx)
+    if (Fp is None or Fl is None):
+        F = force(mx_s)
+    if Fp is None:
+        Fp = F
+    if Fl is None:
+        Fl = F
     R_abs = np.zeros(( N_x, N_x))
     
-    mx_s = np.arange(x_s[0]-dx/2,x_s[-1]+dx/2+dx/4,dx)
-    
-    
-    F = force(mx_s)
-    lp = D / dx**2 * np.exp((F*dx/D)/2)  # r_i->i+1
-    ln = D / dx**2 * np.exp(-(F*dx/D)/2)  # r_i+1->i
+    lp = D / dx**2 * np.exp((Fp*dx/D)/2)  # r_i->i+1
+    ln = D / dx**2 * np.exp(-(Fl*dx/D)/2)  # r_i+1->i
     
     R_abs[np.arange(0,N_x),np.arange(0,N_x)] = -(lp[1:]+ln[:-1]) # -(r_i->i+1 + r_i->i-1) ????
     R_abs[np.arange(0,N_x-1),np.arange(1,N_x)] = ln[1:-1]
@@ -129,9 +132,15 @@ def get_non_delayed_prop(x_s, force, D,dt,dx, N_border=None):
 def get_non_delayed_dyn(R, i_zero, N_t,N_x):
     p = np.zeros((N_t,N_x), dtype = float)
     p[0,i_zero] = 1.
-    for i in tqdm(range(1,N_t), leave=False):
-        p[i] = R@p[i-1]    
-    return p
+    if R.ndim == 2:
+        for i in tqdm(range(1,N_t), leave=False):
+            p[i] = R@p[i-1]    
+        return p
+    else:
+        for i in tqdm(range(1,N_t), leave=False):
+            p[i] = R[i-1]@p[i-1]    
+        return p
+        
     
 
 #### Analytical
@@ -170,12 +179,15 @@ def l(k, tau, t, max_p=40):
 l = np.vectorize(l, )
 
 def get_theo_var_l(ts, tau, D, k = 1):
-    dt = ts[1]-ts[0]
-    max_p = np.max(ts)/tau
-    l_data = l(k,tau,ts, max_p)
-    var = np.zeros(len(ts))
-    var[1:] = (2*D*np.cumsum(l_data**2) *dt)[:-1]
-    return var
+    if tau > 0:
+        dt = ts[1]-ts[0]
+        max_p = np.max(ts)/tau
+        l_data = l(k,tau,ts, max_p)
+        var = np.zeros(len(ts))
+        var[1:] = (2*D*np.cumsum(l_data**2) *dt)[:-1]
+        return var
+    else:
+        return D/k*(1 - np.exp(-2*k*ts))
 
 
 
