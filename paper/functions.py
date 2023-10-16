@@ -145,10 +145,15 @@ def get_non_delayed_dyn(R, i_zero, N_t,N_x):
 
 #### Analytical
 
-def get_p_x4_short_time(x,k,tau,s):
-    ga = s*(1+3*tau*k*x**2)
-    p_not_notmed = np.exp(-x**2/(3*tau*s**2)+(1-18*tau**2*k*s**2)/(9*tau**2*k*s**2)*np.log(1+3*tau*k*x**2))
-    return p_not_notmed/np.sum(p_not_notmed)
+# OLD !?
+# def get_p_x4_short_time(x,k,tau,s):
+#     ga = s*(1+3*tau*k*x**2)
+#     p_not_notmed = np.exp(-x**2/(3*tau*s**2)+(1-18*tau**2*k*s**2)/(9*tau**2*k*s**2)*np.log(1+3*tau*k*x**2))
+#     return p_not_notmed/np.sum(p_not_notmed)
+
+def get_p_x4_short_time(x,tau):
+    res = 1 / (1 + 3 * tau * x**2)**2 * np.exp( - ( (1/(3*tau*x**2 + 1) + np.log(3*tau*x**2+1)) / (9*tau**2) ))
+    return res/res.sum()
 
 
 def get_x2_var(tau,k,s):
