@@ -1,8 +1,14 @@
+import pickle
+from timeit import default_timer as timer
 import numpy as np
 from scipy.linalg import expm
 from tqdm.notebook import tqdm
 from scipy.sparse import csr_array, coo_array
 from scipy.special import factorial
+import json
+from pathlib import Path
+import datetime
+
 
 #  Nummerical (new)
 
@@ -178,7 +184,7 @@ def get_non_delayed_dyn(R, i_zero, N_t, N_x):
         return p
 
 
-#### Analytical
+# Analytical
 
 # OLD !?
 # def get_p_x4_short_time(x,k,tau,s):
@@ -233,14 +239,14 @@ def get_theo_var(t, tau, D, k=1):
 get_theo_var = np.vectorize(get_theo_var, excluded=(1, 2))
 
 
-def l(k, tau, t, max_p=40):
+def l(k, tau, t, max_p=40):  # noqa: E743 (linting ignore short name)
     i = np.arange(0, max_p, 1)
     return np.sum(
         (-k) ** i / factorial(i) * (t - i * tau) ** i * np.heaviside(t - i * tau, 1)
     )
 
 
-l = np.vectorize(
+l = np.vectorize(  # noqa: E741 (linting ignore short name)
     l,
 )
 
@@ -257,7 +263,39 @@ def get_theo_var_l(ts, tau, D, k=1):
         return D / k * (1 - np.exp(-2 * k * ts))
 
 
-#### Simulation
+def get_eq_times(tau, D, eq_perc):
+    known_eq_times = json.load(open("database/eq_times.json"))
+    eq_time = [
+        o["eq_time"]
+        for o in known_eq_times
+        if o["params"] == {"tau": tau, "D": D, "eq_perc": eq_perc}
+    ]
+    if len(eq_time):
+        return eq_time[0]
+
+    s = np.sqrt(2 * D)
+    if tau < 1:
+        test_ts = np.linspace(0, 5, 16000)
+    else:
+        test_ts = np.linspace(0, 40, 16000)
+
+    arg_min = np.argmin(
+        (get_theo_var_l(test_ts, tau, D) - eq_perc * get_x2_var(tau, 1, s)) ** 2
+    )
+    if (arg_min == len(test_ts)) or (arg_min == 0):
+        print("no quliibrium reached")
+        exact_eqtime = -1
+    else:
+        exact_eqtime = test_ts[arg_min]
+    known_eq_times.append(
+        {"params": {"tau": tau, "D": D, "eq_perc": eq_perc}, "eq_time": exact_eqtime}
+    )
+    with open("database/eq_times.json", "w") as file:
+        json.dump(known_eq_times, file)
+    return exact_eqtime
+
+
+# Simulation
 def simulate_traj(N_p, N_loop, N_t, ntau, s, dt, border, force):
     pos = np.empty((N_loop, N_p, N_t))
     vel = s * np.random.randn(N_loop, N_p, N_t) * 1 / np.sqrt(dt)
@@ -271,7 +309,7 @@ def simulate_traj(N_p, N_loop, N_t, ntau, s, dt, border, force):
     return pos
 
 
-#### General functions
+#  General functions
 def get_var_hist(hists, x_s):
     if isinstance(hists, list):
         hists = np.stack(hists)
@@ -302,3 +340,74 @@ def get_steady_mean(data, i=None, max_err=1, thresh=0.1, min_states=5):
             len(steady_points)
         )
     return False
+
+
+# Forces
+def linear_force(x):
+    return -x
+
+
+forces_dict = {"linear": linear_force}
+
+
+# Classes
+class StorageManager:
+    def run(self, **kargs):
+        myname = self.__class__.__name__
+        self.data_dir = Path.cwd() / "database"
+        self.overview_file = self.data_dir / f"{myname}.json"
+        if (self.overview_file).is_file():
+            from_file = json.load(open(self.overview_file, "r"))
+            filenames = [o["filename"] for o in from_file if o["params"] == kargs]
+            if len(filenames) == 1:
+                return pickle.load(open(self.data_dir / filenames[0], "rb"))
+        else:
+            from_file = []
+
+        start = timer()
+        result = self.main(**kargs)
+        end = timer()
+
+        current_time = datetime.datetime.now()
+        # Create a filename that includes the current time, string, and number
+        filename_base = f"{current_time.strftime('%Y-%m-%d')}_{myname}_"
+        exsisting_files = list(self.data_dir.glob(filename_base + "*"))
+        if len(exsisting_files) > 0:
+            highst_idx = max([int(o.stem.split("_")[-1]) for o in exsisting_files])
+        else:
+            highst_idx = -1
+        filename = filename_base + f"{highst_idx+1}.txt"
+
+        with open(self.data_dir / filename, "wb") as file:
+            pickle.dump(result, file)
+
+        from_file.append({"params": kargs, "filename": filename, "time": end - start})
+        with open(self.overview_file, "w") as file:
+            json.dump(from_file, file)
+        return result
+
+    def main(self, *args, **kargs):
+        print(
+            "ERROR, every class which uses \
+              StorageManager should have a run method"
+        )
+
+
+class SimulationManager(StorageManager):
+    def main(self, N_p, N_loop, N_t, N_x, ntau, s, dt, x_0, force, hist_sigma):
+        pos = simulate_traj(
+            N_p, N_loop, N_t, ntau, s, dt, x_0, force=forces_dict[force]
+        )
+        sim_var = np.var(pos, axis=1)
+
+        sb = hist_sigma * np.sqrt(np.max(sim_var))
+        dx = 2 * sb / (N_x - 1)
+
+        x_s = np.arange(-sb, sb + 1e-6, dx)
+        bins = np.arange(-sb - dx / 2, sb + dx / 2 + 1e-6, dx)
+
+        sim_hists = np.swapaxes(
+            np.apply_along_axis(lambda a: np.histogram(a, bins)[0], 1, pos), 1, 2
+        )
+        sim_hist_var = np.apply_along_axis(get_var_hist, -1, sim_hists, x_s=x_s)
+        return {"x_s": x_s, "sim_var": sim_var, "sim_hist_var": sim_hist_var}
