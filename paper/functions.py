@@ -2,7 +2,9 @@ import pickle
 from timeit import default_timer as timer
 import numpy as np
 from scipy.linalg import expm
-from tqdm.notebook import tqdm
+
+# from tqdm.notebook import tqdm
+from tqdm import tqdm
 from scipy.sparse import csr_array, coo_array
 from scipy.special import factorial
 import json
@@ -264,7 +266,11 @@ def get_theo_var_l(ts, tau, D, k=1):
 
 
 def get_eq_times(tau, D, eq_perc):
-    known_eq_times = json.load(open("database/eq_times.json"))
+    database_path = Path.cwd() / "database/eq_times.json"
+    if database_path.is_file():
+        known_eq_times = json.load(open(database_path))
+    else:
+        known_eq_times = []
     eq_time = [
         o["eq_time"]
         for o in known_eq_times
@@ -298,14 +304,14 @@ def get_eq_times(tau, D, eq_perc):
 # Simulation
 def simulate_traj(N_p, N_loop, N_t, ntau, s, dt, border, force):
     pos = np.empty((N_loop, N_p, N_t))
-    vel = s * np.random.randn(N_loop, N_p, N_t) * 1 / np.sqrt(dt)
+    vel = s * np.random.randn(N_loop, N_p, N_t - 1) * 1 / np.sqrt(dt)
 
-    pos[:, :, :ntau] = -border
+    pos[:, :, : ntau + 1] = -border
     vel[:, :, :ntau] = 0
 
-    for i in tqdm(range(ntau, N_t), leave=False):
+    for i in tqdm(range(ntau + 1, N_t), leave=False):
+        vel[:, :, i - 1] += force(pos[:, :, i - ntau - 1])
         pos[:, :, i] = pos[:, :, i - 1] + vel[:, :, i - 1] * dt
-        vel[:, :, i] += force(pos[:, :, i - ntau])
     return pos
 
 
@@ -411,3 +417,28 @@ class SimulationManager(StorageManager):
         )
         sim_hist_var = np.apply_along_axis(get_var_hist, -1, sim_hists, x_s=x_s)
         return {"x_s": x_s, "sim_var": sim_var, "sim_hist_var": sim_hist_var}
+
+
+class SolverManager(StorageManager):
+    def main(self, N_t, N_x, sb, ntau, s, dt, x_0, force):
+        dx = 2 * sb / (N_x - 1)
+        x_s = np.arange(-sb, sb + 1e-6, dx)
+        i_zero = np.argmin((x_s - x_0) ** 2)
+        D = s**2 / 2
+
+        if ntau > 0:
+            # v1
+            # prop = get_prop_abs(x_s, force,D,ldt,dx)
+            # R, _, end_states = create_R(N_x, ntau, prop)
+
+            # v2
+            prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
+            R, _, end_states = create_R_v1(N_x, ntau, prop)
+
+            _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
+        else:
+            R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
+            hists = get_non_delayed_dyn(R, i_zero, N_t, N_x)
+
+        num_var = get_var_hist(hists, x_s)
+        return {"num_var": num_var}
