@@ -1,6 +1,7 @@
 import pickle
 from timeit import default_timer as timer
 import numpy as np
+import scipy
 from scipy.linalg import expm
 
 # from tqdm.notebook import tqdm
@@ -442,3 +443,35 @@ class SolverManager(StorageManager):
 
         num_var = get_var_hist(hists, x_s)
         return {"num_var": num_var}
+
+
+class EigenvectorManager(StorageManager):
+    def main(self, N_x, sb, ntau, s, dt, force):
+        dx = 2 * sb / (N_x - 1)
+        x_s = np.arange(-sb, sb + 1e-6, dx)
+        D = s**2 / 2
+
+        if ntau > 0:
+            # v1
+            # prop = get_prop_abs(x_s, force,D,ldt,dx)
+            # R, _, end_states = create_R(N_x, ntau, prop)
+
+            # v2
+            prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
+            R, _, end_states = create_R_v1(N_x, ntau, prop)
+            evals, evect = scipy.sparse.linalg.eigs(R, k=4)
+            # main_eval = np.abs(evals[0])
+            main_evect = np.real(evect[:, 0])
+            if main_evect.sum() < 0:
+                main_evect *= -1
+            eig_var = get_var_hist(main_evect[end_states].sum(axis=1), x_s)
+        else:
+            R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
+            evals, evect = scipy.sparse.linalg.eigs(R, k=4)
+            # main_eval = np.abs(evals[0])
+            main_evect = np.real(evect[:, 0])
+            if main_evect.sum() < 0:
+                main_evect *= -1
+            eig_var = get_var_hist(main_evect[end_states], x_s)
+
+        return {"eig_var": eig_var}
