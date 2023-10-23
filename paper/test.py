@@ -1,60 +1,25 @@
 # %%
-class test_calss:
-    def run(self, *args):
-        print("running")
-        return self.main(*args)
-
-    def my_name(self):
-        print(self.__class__.__name__)
-
+import numpy as np
+import matplotlib.pyplot as plt
+from functions import SimulationManager, EigenvectorManager
 
 # %%
-def blablablac(arg1, arg2):
-    return arg1 + arg2
+N_p = 4_000
+N_loop = 40
+N_t = 5_000
+N_x = 50
 
-
-class my_test_class(test_calss):
-    # def run(self):
-    #    print("bla")
-
-    def special(self):
-        print("I am spezial")
-
-    def main(self, *args):
-        print(args)
-        return blablablac(*args)
-
-
-# %%
-mytest = my_test_class()
-# %%
-mytest.run(4, 5)
-# %%
-mytest.special()
-# %%
-mytest.my_name()
-# %%
-gloabltest_class = test_calss()
-# %%
-gloabltest_class.my_name()
-
-
-# %%
-from functions import SimulationManager
-
-my_sim_manager = SimulationManager()
-
-N_p = 10_000
-N_loop = 20
-N_t = 1000
-N_x = 21
-ntau = 40
+ntau = 0
 s = 1
-dt = 1.5 / 40
+dt = 0.001
 x_0 = 0
 force = "linear"
-hist_sigma = 3
+hist_sigma = 4
 
+time = np.arange(0, N_t) * dt
+# %%
+my_sim_manager = SimulationManager()
+my_eig_manager = EigenvectorManager()
 res = my_sim_manager.run(
     N_p=N_p,
     N_loop=N_loop,
@@ -67,13 +32,30 @@ res = my_sim_manager.run(
     force=force,
     hist_sigma=hist_sigma,
 )
+sim_var_err = (
+    np.mean(res["sim_var"], axis=0),
+    np.std(res["sim_var"], axis=0) / np.sqrt(N_loop),
+)
+sim_var_hist_err = (
+    np.mean(res["sim_hist_var"], axis=0),
+    np.std(res["sim_hist_var"], axis=0) / np.sqrt(N_loop),
+)
+sb = -res["x_s"][0]
+# %%
+num_res = my_eig_manager.run(N_x=N_x, sb=sb, ntau=ntau, s=s, dt=dt, force=force)
 
-res.keys()
 
 # %%
-res["x_s"]
-# %%
-from functions import get_eq_times
+plt.errorbar(time, *sim_var_err)
+plt.errorbar(time, *sim_var_hist_err)
 
-get_eq_times(0.5, 1 / 2, 0.75)
+plt.xlim(*plt.xlim())
+plt.hlines(0.5, *plt.xlim())
+plt.hlines(num_res["eig_var"], *plt.xlim(), color="C1")
+
+plt.ylim(0.45, 0.55)
+
+# %%
+num_res["eig_var"] / 0.5
+
 # %%

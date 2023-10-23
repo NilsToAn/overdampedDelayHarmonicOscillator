@@ -472,6 +472,6 @@ class EigenvectorManager(StorageManager):
             main_evect = np.real(evect[:, 0])
             if main_evect.sum() < 0:
                 main_evect *= -1
-            eig_var = get_var_hist(main_evect[end_states], x_s)
+            eig_var = get_var_hist(main_evect, x_s)
 
         return {"eig_var": eig_var}
