@@ -3,6 +3,7 @@ from timeit import default_timer as timer
 import numpy as np
 import scipy
 from scipy.linalg import expm
+from typing import Optional
 
 # from tqdm.notebook import tqdm
 from tqdm import tqdm
@@ -396,7 +397,11 @@ def linear_force(x):
     return -x
 
 
-forces_dict = {"linear": linear_force}
+def cubic_force(x):
+    return -(x**3)
+
+
+forces_dict = {"linear": linear_force, "cubic": cubic_force}
 
 
 # Classes
@@ -443,15 +448,34 @@ class StorageManager:
 
 
 class SimulationManager(StorageManager):
-    def main(self, N_p, N_loop, N_t, N_x, ntau, s, dt, x_0, force, hist_sigma):
+    def main(
+        self,
+        N_p: int,
+        N_loop: int,
+        N_t: int,
+        N_x: int,
+        ntau: int,
+        s: float,
+        dt: float,
+        x_0: float,
+        force: str,
+        hist_sigma: float,
+        filter: Optional[list[float, float]] = None,
+    ) -> dict:
         pos = simulate_traj(
             N_p, N_loop, N_t, ntau, s, dt, x_0, force=forces_dict[force]
         )
-        sim_var = np.var(pos, axis=1)
+        if filter is not None:
+            pos_filtered = pos.copy()
+            pos_filtered[
+                (pos_filtered < filter[0]) | (pos_filtered > filter[1])
+            ] = np.nan
+        else:
+            pos_filtered = pos
+        sim_var = np.nanvar(pos_filtered, axis=1)
 
         sb = hist_sigma * np.sqrt(np.max(sim_var))
         dx = 2 * sb / (N_x - 1)
-
         x_s = np.arange(-sb, sb + 1e-6, dx)
         bins = np.arange(-sb - dx / 2, sb + dx / 2 + 1e-6, dx)
 
@@ -459,7 +483,13 @@ class SimulationManager(StorageManager):
             np.apply_along_axis(lambda a: np.histogram(a, bins)[0], 1, pos), 1, 2
         )
         sim_hist_var = np.apply_along_axis(get_var_hist, -1, sim_hists, x_s=x_s)
-        return {"x_s": x_s, "sim_var": sim_var, "sim_hist_var": sim_hist_var}
+        hist_sum = np.sum(sim_hists, axis=2)
+        return {
+            "x_s": x_s,
+            "sim_var": sim_var,
+            "sim_hist_var": sim_hist_var,
+            "hist_sum": hist_sum,
+        }
 
 
 class SolverManager(StorageManager):
