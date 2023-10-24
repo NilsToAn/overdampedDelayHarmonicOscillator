@@ -7,7 +7,7 @@ from scipy.linalg import expm
 # from tqdm.notebook import tqdm
 from tqdm import tqdm
 from scipy.sparse import csr_array, coo_array
-from scipy.special import factorial
+from scipy.special import factorial, erf
 import json
 from pathlib import Path
 import datetime
@@ -322,10 +322,13 @@ def get_var_hist(hists, x_s):
         hists = np.stack(hists)
     if hists.ndim == 2:
         p = hists / np.sum(hists, axis=1)[:, None]
-        return np.sum(p * x_s[None, :] ** 2 - (p * x_s[None, :]) ** 2, axis=1)
+        return (
+            np.sum(p * x_s[None, :] ** 2, axis=1)
+            - np.sum(p * x_s[None, :], axis=1) ** 2
+        )
     if hists.ndim == 1:
         p = hists / np.sum(hists)
-        return np.sum(p * x_s**2 - (p * x_s) ** 2)
+        return np.sum(p * x_s**2) - np.sum(p * x_s) ** 2
     else:
         assert "Wrong number of dim in hists"
 
@@ -347,6 +350,45 @@ def get_steady_mean(data, i=None, max_err=1, thresh=0.1, min_states=5):
             len(steady_points)
         )
     return False
+
+
+def get_ana_hist_var(N_x: int, dx: float, var: float):
+    """Calculates the variance based on a histogram from a gaussfunction
+    to get error due to boundarys (no integration from -inf to inf) and
+    discretisation.
+
+    Parameters
+    ----------
+    N_x : int
+        Number of bins has to be odd,(symmetric boundarys and zero)
+    dx : float
+        bin size
+    var : float
+        variance of true gauss
+
+    Returns
+    -------
+    float
+        varianze from hist
+    """
+    if N_x % 2 != 1:
+        print("Unable for even number of bins")
+        return None
+
+    ks = np.arange(1, (N_x - 1) / 2, dtype=int)
+    dx_tilde = dx / np.sqrt(2 * var)
+    summand = np.sum(-(2 * ks + 1) * erf((ks + 1 / 2) * dx_tilde))
+    A = 1 / (erf(N_x / 2 * dx_tilde))
+    print(summand, A)
+    return (
+        A
+        * dx**2
+        * (
+            -erf(1 / 2 * dx_tilde)
+            + summand
+            + ((N_x - 1) / 2) ** 2 * erf((N_x / 2 * dx_tilde))
+        )
+    )
 
 
 # Forces
