@@ -80,3 +80,7 @@ num_res["eig_var"] / 0.5
 ana_hist_var
 
 # %%
+np.arange([1, 0, 1]) | np.arange([1, 0, 1])
+# %%
+{"a": (1, 0)} == {"a": [1, 0]}
+# %%

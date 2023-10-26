@@ -3,7 +3,7 @@ from timeit import default_timer as timer
 import numpy as np
 import scipy
 from scipy.linalg import expm
-from typing import Optional
+from typing import Callable, Optional
 
 # from tqdm.notebook import tqdm
 from tqdm import tqdm
@@ -202,11 +202,16 @@ def get_non_delayed_dyn(R, i_zero, N_t, N_x):
 
 
 def get_p_x4_short_time(x, tau):
-    res = (
-        1
-        / (1 + 3 * tau * x**2) ** 2
-        * np.exp(-((3 * tau * x**2 - np.log(3 * tau * x**2 + 1)) / (9 * tau**2)))
-    )
+    if tau > 0:
+        res = (
+            1
+            / (1 + 3 * tau * x**2) ** 2
+            * np.exp(
+                -((3 * tau * x**2 - np.log(3 * tau * x**2 + 1)) / (9 * tau**2))
+            )
+        )
+    else:
+        res = np.exp(-(x**4) / 2)
     return res / res.sum()
 
 
@@ -250,9 +255,21 @@ def l(k, tau, t, max_p=40):  # noqa: E743 (linting ignore short name)
     )
 
 
-l = np.vectorize(  # noqa: E741 (linting ignore short name)
-    l,
-)
+l = np.vectorize(l)  # noqa: E741 (linting ignore short name)
+
+
+def l_two_time(a: float, b: float, tau: float, t: float, max_p: int = 40):
+    i = np.arange(0, max_p, 1)
+    return np.sum(
+        (-b) ** i
+        / factorial(i)
+        * (t - i * tau) ** i
+        * np.exp(-a * (t - i * tau))
+        * np.heaviside(t - i * tau, 1)
+    )
+
+
+l_two_time = np.vectorize(l_two_time)
 
 
 def get_theo_var_l(ts, tau, D, k=1):
@@ -264,6 +281,19 @@ def get_theo_var_l(ts, tau, D, k=1):
         var[1:] = (2 * D * np.cumsum(l_data**2) * dt)[:-1]
         return var
     else:
+        return D / k * (1 - np.exp(-2 * k * ts))
+
+
+def get_theo_var_l_two_time(ts, tau, D, a=1, b=1):
+    if tau > 0:
+        dt = ts[1] - ts[0]
+        max_p = np.max(ts) / tau
+        l_data = l_two_time(a, b, tau, ts, max_p)
+        var = np.zeros(len(ts))
+        var[1:] = (2 * D * np.cumsum(l_data**2) * dt)[:-1]
+        return var
+    else:
+        k = a + b
         return D / k * (1 - np.exp(-2 * k * ts))
 
 
@@ -304,14 +334,23 @@ def get_eq_times(tau, D, eq_perc):
 
 
 # Simulation
-def simulate_traj(N_p, N_loop, N_t, ntau, s, dt, border, force):
-    pos = np.empty((N_loop, N_p, N_t))
-    vel = s * np.random.randn(N_loop, N_p, N_t - 1) * 1 / np.sqrt(dt)
+def simulate_traj(
+    N_p: int,
+    N_loop: int,
+    N_t: int,
+    ntau: int,
+    s: float,
+    dt: float,
+    border: float,
+    force: Callable,
+):
+    pos = np.empty((N_loop, N_p, N_t + ntau))
+    vel = s * np.random.randn(N_loop, N_p, N_t + ntau - 1) * 1 / np.sqrt(dt)
 
     pos[:, :, : ntau + 1] = -border
     vel[:, :, :ntau] = 0
 
-    for i in tqdm(range(ntau + 1, N_t), leave=False):
+    for i in tqdm(range(ntau + 1, N_t + ntau), leave=False):
         vel[:, :, i - 1] += force(pos[:, :, i - ntau - 1])
         pos[:, :, i] = pos[:, :, i - 1] + vel[:, :, i - 1] * dt
     return pos
@@ -460,7 +499,7 @@ class SimulationManager(StorageManager):
         x_0: float,
         force: str,
         hist_sigma: float,
-        filter: Optional[list[float, float]] = None,
+        filter: Optional[list[float]] = None,
     ) -> dict:
         pos = simulate_traj(
             N_p, N_loop, N_t, ntau, s, dt, x_0, force=forces_dict[force]
