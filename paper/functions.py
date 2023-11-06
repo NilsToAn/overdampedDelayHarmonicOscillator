@@ -85,6 +85,84 @@ def get_prop_abs_v2(x_s, force, D, dt, dx, N_border=None, side="lr"):
     return prop_abs
 
 
+def get_prop_v2_1(x_s: np.ndarray, f: Callable, D: float, dt: float) -> np.ndarray:
+    """_summary_
+
+    Parameters
+    ----------
+    x_s : np.ndarray
+        The spatial discritisation
+    f : Callable
+        The function f(x_0, x_t) vectorized
+    D : float
+        Diffusitivity, s**2/2
+    dt : float
+        temporal spacing
+
+    Returns
+    -------
+    np.ndarray
+        x^t_f,x^t_i, x_f, x_i
+    """
+    N_x = len(x_s)
+    dx = x_s[1] - x_s[0]
+    # dim as , x^t_f,x^t_i, x_f, x_i
+
+    p_or_m = (np.array([-1, 1]))[None, None, :, None]
+    x_step = p_or_m * dx
+    x_i = x_s[None, None, None, :]
+    x_t_i = x_s[None, :, None, None]
+    x_t_f = x_s[:, None, None, None]
+    crazy_tensor = f(x_i + x_ste/2, 1/2* (x_t_f + x_t_i))
+    U_raw = D / dx**2 * np.exp(p_or_m * crazy_tensor * dx (2 * D))
+    U_full = np.zeros([N_x] * 4)
+    U_full[:, :, np.arange(0, N_x, 1), np.arange(0, N_x, 1)] = -(
+        U_raw[:, :, 0, :] + U_raw[:, :, 1, :]
+    )
+    U_full[:, :, np.arange(0, N_x - 1, 1), np.arange(1, N_x, 1)] = U_raw[:, :, 0, 1:]
+    U_full[:, :, np.arange(1, N_x, 1), np.arange(0, N_x - 1, 1)] = U_raw[:, :, 1, :-1]
+    prob = expm(U_full * dt)
+    return prob
+
+def get_prop_v3(x_s: np.ndarray, f: Callable, D: float, dt: float) -> np.ndarray:
+    """_summary_
+
+    Parameters
+    ----------
+    x_s : np.ndarray
+        The spatial discritisation
+    f : Callable
+        The function f(x_0, x_t) vectorized
+    D : float
+        Diffusitivity, s**2/2
+    dt : float
+        temporal spacing
+
+    Returns
+    -------
+    np.ndarray
+        x^t_f,x^t_i, x_f, x_i
+    """
+    N_x = len(x_s)
+    dx = x_s[1] - x_s[0]
+    # dim as , x^t_f,x^t_i, x_f, x_i ,t
+    int_t = np.linspace(0, 1, 40)[None, None, None, None, :]
+    p_or_m = (np.array([-1, 1]) * dx)[None, None, :, None, None]
+    x_i = x_s[None, None, None, :, None]
+    x_t_i = x_s[None, :, None, None, None]
+    x_t_f = x_s[:, None, None, None, None]
+    crazy_tensor = f(x_i + int_t * p_or_m, x_t_i + int_t * (x_t_f - x_t_i))
+    U_raw = D / dx**2 * np.mean(np.exp(p_or_m * crazy_tensor / (2 * D)), axis=4)
+    U_full = np.zeros([N_x] * 4)
+    U_full[:, :, np.arange(0, N_x, 1), np.arange(0, N_x, 1)] = -(
+        U_raw[:, :, 0, :] + U_raw[:, :, 1, :]
+    )
+    U_full[:, :, np.arange(0, N_x - 1, 1), np.arange(1, N_x, 1)] = U_raw[:, :, 0, 1:]
+    U_full[:, :, np.arange(1, N_x, 1), np.arange(0, N_x - 1, 1)] = U_raw[:, :, 1, :-1]
+    prob = expm(U_full * dt)
+    return prob
+
+
 def create_R(N_x, ntau, prop):
     all_states = np.arange(0, N_x ** (ntau + 1))
 
@@ -125,6 +203,52 @@ def create_R_v1(N_x, ntau, prop):
     R = coo_array(
         (
             prop[lm, :, lt].flatten(),
+            (all_next_states.flatten(), all_states.repeat(N_x)),
+        ),
+        shape=(N_x ** (ntau + 1), N_x ** (ntau + 1)),
+    )
+
+    R = csr_array(R)
+    end_states = np.stack(
+        [all_states[all_states // N_x**ntau == i] for i in range(N_x)]
+    )
+    return R, all_states, end_states
+
+
+def create_R_v3(ntau: int, prop: np.ndarray):
+    """create full 2d transition matrix
+
+    Parameters
+    ----------
+    ntau : int
+        tau_n
+    prop : np.ndarray
+        small 4D version of matrix
+
+    Returns
+    -------
+    scipy.sparse.csr_array
+        The full transition matrix
+    np.ndarray
+        All states
+    np.ndarray
+        All end states
+    """
+    N_x = prop.shape[-1]
+    all_states = np.arange(0, N_x ** (ntau + 1), dtype=int)
+
+    # staetes # 1 * x(t-tau), N_x*x(t-tau1+1dt), ... , N_x**ntau * x(t)
+    l_t_f = (all_states // N_x) % N_x
+    l_t_i = all_states % N_x
+    l_i = all_states // N_x ** (ntau)  # t state
+
+    all_next_states = (all_states // N_x)[:, None] + (
+        (N_x**ntau) * (np.arange(0, N_x))
+    )[None, :]
+
+    R = coo_array(
+        (
+            prop[l_t_f, l_t_i, :, l_i].flatten(),
             (all_next_states.flatten(), all_states.repeat(N_x)),
         ),
         shape=(N_x ** (ntau + 1), N_x ** (ntau + 1)),
@@ -356,6 +480,28 @@ def simulate_traj(
     return pos
 
 
+def simulate_traj_g(
+    N_p: int,
+    N_loop: int,
+    N_t: int,
+    ntau: int,
+    s: float,
+    dt: float,
+    x_0: float,
+    force: Callable,
+):
+    pos = np.empty((N_loop, N_p, N_t + ntau))
+    vel = s * np.random.randn(N_loop, N_p, N_t + ntau - 1) * 1 / np.sqrt(dt)
+
+    pos[:, :, : ntau + 1] = x_0
+    vel[:, :, :ntau] = 0
+
+    for i in tqdm(range(ntau + 1, N_t + ntau), leave=False):
+        vel[:, :, i - 1] += force(pos[:, :, i - 1], pos[:, :, i - ntau - 1])
+        pos[:, :, i] = pos[:, :, i - 1] + vel[:, :, i - 1] * dt
+    return pos
+
+
 #  General functions
 def get_var_hist(hists, x_s):
     if isinstance(hists, list):
@@ -443,6 +589,60 @@ def cubic_force(x):
 forces_dict = {"linear": linear_force, "cubic": cubic_force}
 
 
+def linear_force_2(x_0, x_t):
+    return -x_t
+
+
+def no_delay_linear_force_2(x_0, x_t):
+    return -x_0
+
+
+def general_force(x_0, x_t):
+    return -x_0 - x_t
+
+
+def no_delay_general_force(x_0, x_t):
+    return -x_0 - x_0
+
+
+def cubic_force_2(x_0, x_t):
+    return -(x_t**3)
+
+
+def no_delay_cubic_force_2(x_0, x_t):
+    return -(x_0**3)
+
+
+def cusp_force_2(x_0, x_t, thresh=1e-7):
+    if x_t < -thresh:
+        return -(x_t + 1)
+    elif x_t > thresh:
+        return -(x_t - 1)
+    else:
+        return 0
+
+
+def no_delay_cusp_force_2(x_0, x_t, thresh=1e-7):
+    if x_0 < -thresh:
+        return -(x_0 + 1)
+    elif x_0 > thresh:
+        return -(x_0 - 1)
+    else:
+        return 0
+
+
+forces_dict_2 = {
+    "linear": np.vectorize(linear_force_2),
+    "cubic": np.vectorize(cubic_force_2),
+    "general": np.vectorize(general_force),
+    "cusp_force": np.vectorize(cusp_force_2),
+    "no_delay_general_force": np.vectorize(no_delay_general_force),
+    "no_delay_linear": np.vectorize(no_delay_linear_force_2),
+    "no_delay_cubic": np.vectorize(no_delay_cubic_force_2),
+    "no_delay_cusp_force": np.vectorize(no_delay_cusp_force_2),
+}
+
+
 # Classes
 class StorageManager:
     def run(self, **kargs):
@@ -501,8 +701,13 @@ class SimulationManager(StorageManager):
         hist_sigma: float,
         filter: Optional[list[float]] = None,
     ) -> dict:
-        pos = simulate_traj(
-            N_p, N_loop, N_t, ntau, s, dt, x_0, force=forces_dict[force]
+        # v1
+        # pos = simulate_traj(
+        #    N_p, N_loop, N_t, ntau, s, dt, x_0, force=forces_dict[force]
+        # )
+        # v2
+        pos = simulate_traj_g(
+            N_p, N_loop, N_t, ntau, s, dt, x_0, force=forces_dict_2[force]
         )
         if filter is not None:
             pos_filtered = pos.copy()
@@ -544,14 +749,18 @@ class SolverManager(StorageManager):
             # R, _, end_states = create_R(N_x, ntau, prop)
 
             # v2
-            prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
-            R, _, end_states = create_R_v1(N_x, ntau, prop)
+            # prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
+            # R, _, end_states = create_R_v1(N_x, ntau, prop)
 
-            _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
+            # v3
+            prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
         else:
-            R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
-            hists = get_non_delayed_dyn(R, i_zero, N_t, N_x)
+            # R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
+            # hists = get_non_delayed_dyn(R, i_zero, N_t, N_x)
+            prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
 
+        R, _, end_states = create_R_v3(ntau, prop)
+        _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
         num_var = get_var_hist(hists, x_s)
         return {"num_var": num_var}
 
@@ -568,8 +777,12 @@ class EigenvectorManager(StorageManager):
             # R, _, end_states = create_R(N_x, ntau, prop)
 
             # v2
-            prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
-            R, _, end_states = create_R_v1(N_x, ntau, prop)
+            # prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
+            # R, _, end_states = create_R_v1(N_x, ntau, prop)
+
+            # v3
+            prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
+            R, _, end_states = create_R_v3(ntau, prop)
             evals, evect = scipy.sparse.linalg.eigs(R, k=4)
             # main_eval = np.abs(evals[0])
             main_evect = np.real(evect[:, 0])
@@ -577,12 +790,24 @@ class EigenvectorManager(StorageManager):
                 main_evect *= -1
             eig_var = get_var_hist(main_evect[end_states].sum(axis=1), x_s)
         else:
-            R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
+            # v2
+            # R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
+            # evals, evect = scipy.sparse.linalg.eigs(R, k=4)
+            # main_eval = np.abs(evals[0])
+            # main_evect = np.real(evect[:, 0])
+            # if main_evect.sum() < 0:
+            #    main_evect *= -1
+            # eig_var = get_var_hist(main_evect, x_s)
+
+            # v3
+
+            prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
+            R, _, end_states = create_R_v3(ntau, prop)
             evals, evect = scipy.sparse.linalg.eigs(R, k=4)
             # main_eval = np.abs(evals[0])
             main_evect = np.real(evect[:, 0])
             if main_evect.sum() < 0:
                 main_evect *= -1
-            eig_var = get_var_hist(main_evect, x_s)
+            eig_var = get_var_hist(main_evect[end_states].sum(axis=1), x_s)
 
         return {"eig_var": eig_var}
