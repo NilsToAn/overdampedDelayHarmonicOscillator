@@ -108,14 +108,14 @@ def get_prop_v2_1(x_s: np.ndarray, f: Callable, D: float, dt: float) -> np.ndarr
     dx = x_s[1] - x_s[0]
     # dim as , x^t_f,x^t_i, x_f, x_i
 
-    p_or_m = (np.array([-1, 1]))[None, None, :, None]
+    p_or_m = np.array([-1.0, 1.0])[None, None, :, None]
     x_step = p_or_m * dx
     x_i = x_s[None, None, None, :]
     x_t_i = x_s[None, :, None, None]
     x_t_f = x_s[:, None, None, None]
-    crazy_tensor = f(x_i + x_ste/2, 1/2* (x_t_f + x_t_i))
-    U_raw = D / dx**2 * np.exp(p_or_m * crazy_tensor * dx (2 * D))
-    U_full = np.zeros([N_x] * 4)
+    crazy_tensor = f(x_i + x_step / 2, 1 / 2 * (x_t_f + x_t_i))
+    U_raw = D / dx**2 * np.exp(p_or_m * crazy_tensor * dx / (2 * D))
+    U_full = np.zeros([N_x] * 4, dtype=float)
     U_full[:, :, np.arange(0, N_x, 1), np.arange(0, N_x, 1)] = -(
         U_raw[:, :, 0, :] + U_raw[:, :, 1, :]
     )
@@ -123,6 +123,7 @@ def get_prop_v2_1(x_s: np.ndarray, f: Callable, D: float, dt: float) -> np.ndarr
     U_full[:, :, np.arange(1, N_x, 1), np.arange(0, N_x - 1, 1)] = U_raw[:, :, 1, :-1]
     prob = expm(U_full * dt)
     return prob
+
 
 def get_prop_v3(x_s: np.ndarray, f: Callable, D: float, dt: float) -> np.ndarray:
     """_summary_
@@ -490,7 +491,7 @@ def simulate_traj_g(
     x_0: float,
     force: Callable,
 ):
-    pos = np.empty((N_loop, N_p, N_t + ntau))
+    pos = np.empty((N_loop, N_p, N_t + ntau), dtype=float)
     vel = s * np.random.randn(N_loop, N_p, N_t + ntau - 1) * 1 / np.sqrt(dt)
 
     pos[:, :, : ntau + 1] = x_0
@@ -590,56 +591,82 @@ forces_dict = {"linear": linear_force, "cubic": cubic_force}
 
 
 def linear_force_2(x_0, x_t):
-    return -x_t
+    res_array = np.empty(np.broadcast_shapes(x_0.shape, x_t.shape))
+    res_array[:] = -x_t
+    return res_array
 
 
 def no_delay_linear_force_2(x_0, x_t):
-    return -x_0
+    res_array = np.empty(np.broadcast_shapes(x_0.shape, x_t.shape))
+    res_array[:] = -x_0
+    return res_array
 
 
 def general_force(x_0, x_t):
-    return -x_0 - x_t
+    res_array = np.empty(np.broadcast_shapes(x_0.shape, x_t.shape))
+    res_array[:] = -x_0 - x_t
+    return res_array
 
 
 def no_delay_general_force(x_0, x_t):
-    return -x_0 - x_0
+    res_array = np.empty(np.broadcast_shapes(x_0.shape, x_t.shape))
+    res_array[:] = -x_0 - x_0
+    return res_array
 
 
 def cubic_force_2(x_0, x_t):
-    return -(x_t**3)
+    res_array = np.empty(np.broadcast_shapes(x_0.shape, x_t.shape))
+    res_array[:] = -(x_t**3)
+    return res_array
 
 
 def no_delay_cubic_force_2(x_0, x_t):
-    return -(x_0**3)
+    res_array = np.empty(np.broadcast_shapes(x_0.shape, x_t.shape))
+    res_array[:] = -(x_0**3)
+    return res_array
 
 
 def cusp_force_2(x_0, x_t, thresh=1e-7):
-    if x_t < -thresh:
-        return -(x_t + 1)
-    elif x_t > thresh:
-        return -(x_t - 1)
-    else:
-        return 0
+    # if x_t < -thresh:
+    #    return -(x_t + 1)
+    # elif x_t > thresh:
+    #    return -(x_t - 1)
+    # else:
+    #    return 0
+    b = np.where(x_t < -thresh, -(x_t + 1), x_t)
+    b = np.where(x_t > thresh, -(x_t - 1), b)
+    b = np.where(np.abs(x_t) < thresh, 0, b)
+
+    res_array = np.empty(np.broadcast_shapes(x_0.shape, x_t.shape))
+    res_array[:] = b
+    return res_array
 
 
 def no_delay_cusp_force_2(x_0, x_t, thresh=1e-7):
-    if x_0 < -thresh:
-        return -(x_0 + 1)
-    elif x_0 > thresh:
-        return -(x_0 - 1)
-    else:
-        return 0
+    # if x_0 < -thresh:
+    #    return -(x_0 + 1)
+    # elif x_0 > thresh:
+    #    return -(x_0 - 1)
+    # else:
+    #    return 0
+    b = np.where(x_0 < -thresh, -(x_0 + 1), x_t)
+    b = np.where(x_0 > thresh, -(x_0 - 1), b)
+    b = np.where(np.abs(x_0) < thresh, 0, b)
+
+    res_array = np.empty(np.broadcast_shapes(x_0.shape, x_t.shape))
+    res_array[:] = b
+    return res_array
 
 
 forces_dict_2 = {
-    "linear": np.vectorize(linear_force_2),
-    "cubic": np.vectorize(cubic_force_2),
-    "general": np.vectorize(general_force),
-    "cusp_force": np.vectorize(cusp_force_2),
-    "no_delay_general_force": np.vectorize(no_delay_general_force),
-    "no_delay_linear": np.vectorize(no_delay_linear_force_2),
-    "no_delay_cubic": np.vectorize(no_delay_cubic_force_2),
-    "no_delay_cusp_force": np.vectorize(no_delay_cusp_force_2),
+    "linear": linear_force_2,
+    "cubic": cubic_force_2,
+    "general": general_force,
+    "cusp_force": cusp_force_2,
+    "no_delay_general_force": no_delay_general_force,
+    "no_delay_linear": no_delay_linear_force_2,
+    "no_delay_cubic": no_delay_cubic_force_2,
+    "no_delay_cusp_force": no_delay_cusp_force_2,
 }
 
 
@@ -737,7 +764,7 @@ class SimulationManager(StorageManager):
 
 
 class SolverManager(StorageManager):
-    def main(self, N_t, N_x, sb, ntau, s, dt, x_0, force):
+    def main(self, N_t, N_x, sb, ntau, s, dt, x_0, force, version):
         dx = 2 * sb / (N_x - 1)
         x_s = np.arange(-sb, sb + 1e-6, dx)
         i_zero = np.argmin((x_s - x_0) ** 2)
@@ -752,12 +779,19 @@ class SolverManager(StorageManager):
             # prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
             # R, _, end_states = create_R_v1(N_x, ntau, prop)
 
+            # v2_1
+            if version == 2:
+                prop = get_prop_v2_1(x_s, forces_dict_2[force], D, dt)
             # v3
-            prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
+            if version == 3:
+                prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
         else:
             # R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
             # hists = get_non_delayed_dyn(R, i_zero, N_t, N_x)
-            prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
+            if version == 2:
+                prop = get_prop_v2_1(x_s, forces_dict_2["no_delay_" + force], D, dt)
+            if version == 3:
+                prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
         _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
@@ -766,7 +800,7 @@ class SolverManager(StorageManager):
 
 
 class EigenvectorManager(StorageManager):
-    def main(self, N_x, sb, ntau, s, dt, force):
+    def main(self, N_x, sb, ntau, s, dt, force, version):
         dx = 2 * sb / (N_x - 1)
         x_s = np.arange(-sb, sb + 1e-6, dx)
         D = s**2 / 2
@@ -780,8 +814,13 @@ class EigenvectorManager(StorageManager):
             # prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
             # R, _, end_states = create_R_v1(N_x, ntau, prop)
 
+            # v2_1
+            if version == 2:
+                prop = get_prop_v2_1(x_s, forces_dict_2[force], D, dt)
             # v3
-            prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
+            if version == 3:
+                prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
+
             R, _, end_states = create_R_v3(ntau, prop)
             evals, evect = scipy.sparse.linalg.eigs(R, k=4)
             # main_eval = np.abs(evals[0])
@@ -799,9 +838,13 @@ class EigenvectorManager(StorageManager):
             #    main_evect *= -1
             # eig_var = get_var_hist(main_evect, x_s)
 
-            # v3
+            # v2_1
+            if version == 2:
+                prop = get_prop_v2_1(x_s, forces_dict_2["no_delay_" + force], D, dt)
 
-            prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
+            # v3
+            if version == 3:
+                prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
             R, _, end_states = create_R_v3(ntau, prop)
             evals, evect = scipy.sparse.linalg.eigs(R, k=4)
             # main_eval = np.abs(evals[0])

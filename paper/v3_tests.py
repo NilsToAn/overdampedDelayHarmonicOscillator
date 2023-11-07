@@ -1,7 +1,13 @@
 # %%
 import numpy as np
 import matplotlib.pyplot as plt
-from functions import create_R_v3, get_non_delayed_prop, get_prob_v3, get_prop_abs_v2
+from functions import (
+    create_R_v3,
+    get_non_delayed_prop,
+    get_prop_v3,
+    get_prop_abs_v2,
+    get_prop_v2_1,
+)
 
 # %%
 D = 1 / 2
@@ -13,7 +19,7 @@ dt = 0.25 / 4  # 3
 
 
 def f(x_0, x_t):
-    return -x_t  # -x_0
+    return -x_0  # -x_t
 
 
 f = np.vectorize(f)
@@ -24,7 +30,7 @@ f = np.vectorize(f)
 
 
 # %%
-R = get_prob_v3(x_s, f, D, dt)
+R = get_prop_v2_1(x_s, f, D, dt)
 Real_R = create_R_v3(3, R)
 # %%
 plt.imshow(R[0, 0])

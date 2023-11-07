@@ -84,3 +84,10 @@ np.array([1, 0, 1]) | np.array([1, 0, 1])
 # %%
 {"a": (1, 0)} == {"a": [1, 0]}
 # %%
+a = np.array([-2, 0.1, 2])
+b = np.where(a < 0.2, a**2, a)
+b = np.where(a > 0.2, a**2, b)
+b = np.where(np.abs(a) < 0.2, 0, b)
+b
+# %%
+np.broadcast_shapes((25, 25, 1, 1), (1, 1, 25, 25))
