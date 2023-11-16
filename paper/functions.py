@@ -85,7 +85,9 @@ def get_prop_abs_v2(x_s, force, D, dt, dx, N_border=None, side="lr"):
     return prop_abs
 
 
-def get_prop_v2_1(x_s: np.ndarray, f: Callable, D: float, dt: float) -> np.ndarray:
+def get_prop_v2_1(
+    x_s: np.ndarray, f: Callable[..., np.ndarray], D: float, dt: float
+) -> np.ndarray:
     """_summary_
 
     Parameters
@@ -675,6 +677,7 @@ class StorageManager:
     def run(self, **kargs):
         myname = self.__class__.__name__
         self.data_dir = Path.cwd() / "database"
+        self.data_dir.mkdir(exist_ok=True)
         self.overview_file = self.data_dir / f"{myname}.json"
         if (self.overview_file).is_file():
             from_file = json.load(open(self.overview_file, "r"))
@@ -846,7 +849,7 @@ class EigenvectorManager(StorageManager):
             if version == 3:
                 prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
             R, _, end_states = create_R_v3(ntau, prop)
-            evals, evect = scipy.sparse.linalg.eigs(R, k=4)
+            evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
             # main_eval = np.abs(evals[0])
             main_evect = np.real(evect[:, 0])
             if main_evect.sum() < 0:
