@@ -342,37 +342,63 @@ def get_p_x4_short_time(x, tau):
     return res / res.sum()
 
 
-def get_x2_var(tau, k, s):
-    return s**2 / (2 * k) * (1 + np.sin(k * tau)) / np.cos(k * tau)
+def get_lin_var(tau, a, b, s):
+    D = 1 / 2 * s**2
+    if b > a:
+        return (
+            D
+            * (
+                1
+                + np.sin(np.sqrt(b**2 - a**2) * tau) / np.sqrt(1 - a**2 / b**2)
+            )
+            * 1
+            / (a + b * np.cos(np.sqrt(b**2 - a**2) * tau))
+        )
+    elif a == b:
+        return D * (1 + b * tau) * 1 / (2 * b)
+    elif b < a:
+        return (
+            D
+            * (
+                1
+                + np.sinh(np.sqrt(a**2 - b**2) * tau) / np.sqrt(a**2 / b**2 - 1)
+            )
+            * 1
+            / (a + b * np.cosh(np.sqrt(a**2 - b**2) * tau))
+        )
 
 
-def get_x2_var_short_time(tau, k, s):
-    return s**2 / (2 * k) * (1 + k * tau)
+get_lin_var = np.vectorize(get_lin_var, excluded=(1, 2, 3))
+
+
+def get_lin_var_short_time(tau, a, b, s):
+    D = 1 / 2 * s**2
+    return D / (a + b) * (1 + b * tau)
 
 
 # Theory
 
 
 # WRONG !!!
-def summand(t, l1, l2, tau, k=1):
-    return (
-        (-k) ** (l1 + l2)
-        / (factorial(l1) * factorial(l2))
-        * (
-            1 / (l1 + 1) * (t - l1 * tau) ** (l1 + 1) * (t - l2 * tau) ** l2
-            + 1 / (l2 + 1) * (t - l2 * tau) ** (l2 + 1) * (t - l1 * tau) ** l1
-        )
-    )
+# def summand(t, l1, l2, tau, k=1):
+#     return (
+#         (-k) ** (l1 + l2)
+#         / (factorial(l1) * factorial(l2))
+#         * (
+#             1 / (l1 + 1) * (t - l1 * tau) ** (l1 + 1) * (t - l2 * tau) ** l2
+#             + 1 / (l2 + 1) * (t - l2 * tau) ** (l2 + 1) * (t - l1 * tau) ** l1
+#         )
+#     )
 
 
 # WRONG !!!!!
-def get_theo_var(t, tau, D, k=1):
-    l1 = np.arange(0, t / tau)
-    l2 = np.arange(0, t / tau)
-    return 2 * D * (np.sum(summand(t, l1[:, None], l2[None, :], tau, k=k)))
+# def get_theo_var(t, tau, D, k=1):
+#     l1 = np.arange(0, t / tau)
+#     l2 = np.arange(0, t / tau)
+#     return 2 * D * (np.sum(summand(t, l1[:, None], l2[None, :], tau, k=k)))
 
 
-get_theo_var = np.vectorize(get_theo_var, excluded=(1, 2))
+# get_theo_var = np.vectorize(get_theo_var, excluded=(1, 2))
 
 
 def l(k, tau, t, max_p=40):  # noqa: E743 (linting ignore short name)
@@ -399,16 +425,16 @@ def l_two_time(a: float, b: float, tau: float, t: float, max_p: int = 40):
 l_two_time = np.vectorize(l_two_time)
 
 
-def get_theo_var_l(ts, tau, D, k=1):
-    if tau > 0:
-        dt = ts[1] - ts[0]
-        max_p = np.max(ts) / tau
-        l_data = l(k, tau, ts, max_p)
-        var = np.zeros(len(ts))
-        var[1:] = (2 * D * np.cumsum(l_data**2) * dt)[:-1]
-        return var
-    else:
-        return D / k * (1 - np.exp(-2 * k * ts))
+# def get_theo_var_l(ts, tau, D, k=1):
+#     if tau > 0:
+#         dt = ts[1] - ts[0]
+#         max_p = np.max(ts) / tau
+#         l_data = l(k, tau, ts, max_p)
+#         var = np.zeros(len(ts))
+#         var[1:] = (2 * D * np.cumsum(l_data**2) * dt)[:-1]
+#         return var
+#     else:
+#         return D / k * (1 - np.exp(-2 * k * ts))
 
 
 def get_theo_var_l_two_time(ts, tau, D, a=1, b=1):
@@ -424,7 +450,7 @@ def get_theo_var_l_two_time(ts, tau, D, a=1, b=1):
         return D / k * (1 - np.exp(-2 * k * ts))
 
 
-def get_eq_times(tau, D, eq_perc):
+def get_eq_times(tau, D, eq_perc, a, b):
     database_path = Path.cwd() / "database/eq_times.json"
     if database_path.is_file():
         known_eq_times = json.load(open(database_path))
@@ -433,7 +459,7 @@ def get_eq_times(tau, D, eq_perc):
     eq_time = [
         o["eq_time"]
         for o in known_eq_times
-        if o["params"] == {"tau": tau, "D": D, "eq_perc": eq_perc}
+        if o["params"] == {"tau": tau, "D": D, "eq_perc": eq_perc, "a": a, "b": b}
     ]
     if len(eq_time):
         return eq_time[0]
@@ -445,7 +471,11 @@ def get_eq_times(tau, D, eq_perc):
         test_ts = np.linspace(0, 40, 16000)
 
     arg_min = np.argmin(
-        (get_theo_var_l(test_ts, tau, D) - eq_perc * get_x2_var(tau, 1, s)) ** 2
+        (
+            get_theo_var_l_two_time(test_ts, tau, D, a, b)
+            - eq_perc * get_lin_var(tau, a, b, s)
+        )
+        ** 2
     )
     if (arg_min == len(test_ts)) or (arg_min == 0):
         print("no quliibrium reached")
@@ -453,7 +483,10 @@ def get_eq_times(tau, D, eq_perc):
     else:
         exact_eqtime = test_ts[arg_min]
     known_eq_times.append(
-        {"params": {"tau": tau, "D": D, "eq_perc": eq_perc}, "eq_time": exact_eqtime}
+        {
+            "params": {"tau": tau, "D": D, "eq_perc": eq_perc, "a": a, "b": b},
+            "eq_time": exact_eqtime,
+        }
     )
     with open("database/eq_times.json", "w") as file:
         json.dump(known_eq_times, file)
@@ -665,7 +698,7 @@ forces_dict_2 = {
     "cubic": cubic_force_2,
     "general": general_force,
     "cusp_force": cusp_force_2,
-    "no_delay_general_force": no_delay_general_force,
+    "no_delay_general": no_delay_general_force,
     "no_delay_linear": no_delay_linear_force_2,
     "no_delay_cubic": no_delay_cubic_force_2,
     "no_delay_cusp_force": no_delay_cusp_force_2,

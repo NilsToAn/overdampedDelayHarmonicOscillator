@@ -11,9 +11,10 @@ from functions import (
     get_prop_v2_1,
     forces_dict_2,
     get_theo_var_l,
+    get_theo_var_l_two_time,
     get_var_hist,
+    get_lin_var,
     get_dyn_v2,
-    get_x2_var,
     simulate_traj_g,
 )
 
@@ -106,42 +107,58 @@ np.broadcast_shapes((25, 25, 1, 1), (1, 1, 25, 25))
 ntau = 2
 s = 1
 D = 1 / 2 * s**2
-dt = 0.6
-force = "linear"
-hist_sigma = 4
+dt = 0.1
 N_x = 79
+force = "general"
+if force == "linear":
+    a = 0.0
+    b = 1.0
+elif force == "general":
+    a = 1.0
+    b = 1.0
+N_t = 60
+N_p = 2000
+N_loop = 40
+x_0 = 0
 
-for dt in [0.5]:
-    truth = get_x2_var(dt * ntau, 1, s)
-    x_s = np.linspace(-4 * np.sqrt(3), 4 * np.sqrt(3), N_x)
-    i_zero = np.argmin(x_s**2)
+sim_N_t = 600
+sim_dt = 0.01
+sim_ntau = 20
 
-    prop = get_prop_v2_1(x_s, forces_dict_2[force], D, dt)
-    R, _, end_states = create_R_v3(ntau, prop)
-
-    evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
-    main_evect = np.real(evect[:, 0])
-    if main_evect.sum() < 0:
-        main_evect *= -1
-    eig_var = get_var_hist(main_evect[end_states].sum(axis=1), x_s)
-    print(eig_var, truth, eig_var / get_x2_var(dt * ntau, 1, s))
-
-# _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
-# num_var = get_var_hist(hists, x_s)
+time = np.arange(0, N_t) * dt
+sim_time = np.arange(0, sim_N_t) * sim_dt
 
 
-# pos = simulate_traj_g(N_p, N_loop, N_t, ntau, s, dt, x_0, force=forces_dict_2[force])
-# pos_filtered = pos
-# sim_var = np.nanvar(pos_filtered, axis=1)
-# mean_sim_var = np.mean(sim_var, axis=0)
+truth = get_lin_var(dt * ntau, a=a, b=b, s=1)
+x_s = np.linspace(-4 * np.sqrt(truth), 4 * np.sqrt(truth), N_x)
+i_zero = np.argmin(x_s**2)
+
+prop = get_prop_v2_1(x_s, forces_dict_2[force], D, dt)
+R, _, end_states = create_R_v3(ntau, prop)
+
+evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
+main_evect = np.real(evect[:, 0])
+if main_evect.sum() < 0:
+    main_evect *= -1
+eig_var = get_var_hist(main_evect[end_states].sum(axis=1), x_s)
+print(eig_var, truth, eig_var / truth)
+
+_, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
+num_var = get_var_hist(hists, x_s)
+
+pos = simulate_traj_g(
+    N_p, N_loop, sim_N_t, sim_ntau, s, sim_dt, x_0, force=forces_dict_2[force]
+)
+pos_filtered = pos
+sim_var = np.nanvar(pos_filtered, axis=1)
+mean_sim_var = np.mean(sim_var, axis=0)
 
 # %%
 plt.plot(time, num_var)
-# plt.plot(time, mean_sim_var[ntau:])
-high_res_t = np.linspace(time[0], 8, 1000)
-plt.plot(high_res_t, get_theo_var_l(high_res_t, dt * ntau, D))
-plt.hlines(get_x2_var(dt * ntau, 1, s), *plt.xlim())
-plt.xlim(0, 10)
+plt.plot(sim_time, mean_sim_var[sim_ntau:])
+high_res_t = np.linspace(time[0], time[-1], 1000)
+plt.plot(high_res_t, get_theo_var_l_two_time(high_res_t, dt * ntau, D, a=a, b=b))
+plt.hlines(truth, *plt.xlim())
 
 # %%
 print("-----")
