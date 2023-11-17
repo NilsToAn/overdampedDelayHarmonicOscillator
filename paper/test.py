@@ -10,7 +10,7 @@ from functions import (
     get_ana_hist_var,
     get_prop_v2_1,
     forces_dict_2,
-    get_theo_var_l,
+    get_quantil_hist,
     get_theo_var_l_two_time,
     get_var_hist,
     get_lin_var,
@@ -104,6 +104,25 @@ np.broadcast_shapes((25, 25, 1, 1), (1, 1, 25, 25))
 
 
 # %%
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy
+from functions import (
+    SimulationManager,
+    EigenvectorManager,
+    SolverManager,
+    create_R_v3,
+    get_ana_hist_var,
+    get_prop_v2_1,
+    forces_dict_2,
+    get_quantil_hist,
+    get_theo_var_l_two_time,
+    get_var_hist,
+    get_lin_var,
+    get_dyn_v2,
+    simulate_traj_g,
+)
+
 ntau = 2
 s = 1
 D = 1 / 2 * s**2
@@ -153,6 +172,9 @@ pos_filtered = pos
 sim_var = np.nanvar(pos_filtered, axis=1)
 mean_sim_var = np.mean(sim_var, axis=0)
 
+sim_q = np.quantile(pos_filtered, 0.842, axis=1) ** 2
+mean_sim_q = np.mean(sim_q, axis=0)
+
 # %%
 plt.plot(time, num_var)
 plt.plot(sim_time, mean_sim_var[sim_ntau:])
@@ -161,4 +183,30 @@ plt.plot(high_res_t, get_theo_var_l_two_time(high_res_t, dt * ntau, D, a=a, b=b)
 plt.hlines(truth, *plt.xlim())
 
 # %%
-print("-----")
+plt.plot(time, get_quantil_hist(hists, x_s))
+plt.plot(time, num_var)
+plt.plot(sim_time, mean_sim_q[sim_ntau:])
+# %%
+get_quantil_hist(hists, x_s)
+
+# %%
+num_var[1]
+q = 0.84
+
+p = hists / np.sum(hists, axis=1)[:, None]
+q_dis = np.cumsum(p, axis=1) - q
+cross = np.where((q_dis[:, :-1] * q_dis[:, 1:]) < 0)
+
+x1 = x_s[cross[1]]
+x2 = x_s[cross[1] + 1]
+y1 = q_dis[cross[0], cross[1]]
+y2 = q_dis[cross[0], cross[1] + 1]
+x1.shape, y1.shape
+mytry = (-y2 * (x2 - x1) / (y2 - y1) + x2 + (x_s[1] - x_s[0]) / 2) ** 2
+
+# %%
+import numpy as np
+
+a = np.array([-np.inf, 1, np.nan, 2, 3, 4, np.inf])
+np.quantile(a[~np.isnan(a)], 0.7)
+# %%

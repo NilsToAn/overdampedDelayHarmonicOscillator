@@ -555,6 +555,31 @@ def get_var_hist(hists, x_s):
         assert "Wrong number of dim in hists"
 
 
+def get_quantile_hist(hists, x_s, q=0.842):
+    if isinstance(hists, list):
+        hists = np.stack(hists)
+    if hists.ndim == 2:
+        p = hists / np.sum(hists, axis=1)[:, None]
+        q_dis = np.cumsum(p, axis=1) - q
+        cross = np.where((q_dis[:, :-1] * q_dis[:, 1:]) < 0)
+        x1 = x_s[cross[1]]
+        x2 = x_s[cross[1] + 1]
+        y1 = q_dis[cross[0], cross[1]]
+        y2 = q_dis[cross[0], cross[1] + 1]
+        return (-y2 * (x2 - x1) / (y2 - y1) + x2 + (x_s[1] - x_s[0]) / 2) ** 2
+    if hists.ndim == 1:
+        p = hists / np.sum(hists)
+        q_dis = np.cumsum(p) - q
+        cross = np.where((q_dis[:-1] * q_dis[1:]) < 0)
+        x1 = x_s[cross[0]]
+        x2 = x_s[cross[0] + 1]
+        y1 = q_dis[cross[0]]
+        y2 = q_dis[cross[0] + 1]
+        return (-y2 * (x2 - x1) / (y2 - y1) + x2 + (x_s[1] - x_s[0]) / 2) ** 2
+    else:
+        assert "Wrong number of dim in hists"
+
+
 def get_steady_mean(data, i=None, max_err=1, thresh=0.1, min_states=5):
     if i is None:
         i = len(data) - 1
@@ -762,6 +787,7 @@ class SimulationManager(StorageManager):
         x_0: float,
         force: str,
         hist_sigma: float,
+        measure: Optional[str] = "var",
         filter: Optional[list[float]] = None,
     ) -> dict:
         # v1
@@ -779,7 +805,10 @@ class SimulationManager(StorageManager):
             ] = np.nan
         else:
             pos_filtered = pos
-        sim_var = np.nanvar(pos_filtered, axis=1)
+        if measure == "var":
+            sim_var = np.nanvar(pos_filtered, axis=1)
+        elif measure == "quantile":
+            sim_var = np.nanquantile(pos_filtered, 0.842, axis=1)
 
         sb = hist_sigma * np.sqrt(np.max(sim_var))
         dx = 2 * sb / (N_x - 1)
@@ -800,7 +829,7 @@ class SimulationManager(StorageManager):
 
 
 class SolverManager(StorageManager):
-    def main(self, N_t, N_x, sb, ntau, s, dt, x_0, force, version):
+    def main(self, N_t, N_x, sb, ntau, s, dt, x_0, force, version, measure="var"):
         dx = 2 * sb / (N_x - 1)
         x_s = np.arange(-sb, sb + 1e-6, dx)
         i_zero = np.argmin((x_s - x_0) ** 2)
@@ -831,12 +860,15 @@ class SolverManager(StorageManager):
 
         R, _, end_states = create_R_v3(ntau, prop)
         _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
-        num_var = get_var_hist(hists, x_s)
+        if measure == "var":
+            num_var = get_var_hist(hists, x_s)
+        elif measure == "quantile":
+            num_var = get_quantile_hist(hists, x_s)
         return {"num_var": num_var}
 
 
 class EigenvectorManager(StorageManager):
-    def main(self, N_x, sb, ntau, s, dt, force, version):
+    def main(self, N_x, sb, ntau, s, dt, force, version, measure="var"):
         dx = 2 * sb / (N_x - 1)
         x_s = np.arange(-sb, sb + 1e-6, dx)
         D = s**2 / 2
@@ -856,14 +888,7 @@ class EigenvectorManager(StorageManager):
             # v3
             if version == 3:
                 prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
-
-            R, _, end_states = create_R_v3(ntau, prop)
-            evals, evect = scipy.sparse.linalg.eigs(R, k=4)
             # main_eval = np.abs(evals[0])
-            main_evect = np.real(evect[:, 0])
-            if main_evect.sum() < 0:
-                main_evect *= -1
-            eig_var = get_var_hist(main_evect[end_states].sum(axis=1), x_s)
         else:
             # v2
             # R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
@@ -881,12 +906,16 @@ class EigenvectorManager(StorageManager):
             # v3
             if version == 3:
                 prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
-            R, _, end_states = create_R_v3(ntau, prop)
-            evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
-            # main_eval = np.abs(evals[0])
-            main_evect = np.real(evect[:, 0])
-            if main_evect.sum() < 0:
-                main_evect *= -1
+
+        R, _, end_states = create_R_v3(ntau, prop)
+        evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
+        # main_eval = np.abs(evals[0])
+        main_evect = np.real(evect[:, 0])
+        if main_evect.sum() < 0:
+            main_evect *= -1
+        if measure == "var":
             eig_var = get_var_hist(main_evect[end_states].sum(axis=1), x_s)
+        elif measure == "quantile":
+            eig_var = get_quantile_hist(main_evect[end_states].sum(axis=1), x_s)
 
         return {"eig_var": eig_var}
