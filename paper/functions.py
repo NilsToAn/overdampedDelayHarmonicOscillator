@@ -525,6 +525,7 @@ def simulate_traj_g(
     dt: float,
     x_0: float,
     force: Callable,
+    filter: Optional[list[float]] = None,
 ):
     pos = np.empty((N_loop, N_p, N_t + ntau), dtype=float)
     vel = s * np.random.randn(N_loop, N_p, N_t + ntau - 1) * 1 / np.sqrt(dt)
@@ -535,6 +536,8 @@ def simulate_traj_g(
     for i in tqdm(range(ntau + 1, N_t + ntau), leave=False):
         vel[:, :, i - 1] += force(pos[:, :, i - 1], pos[:, :, i - ntau - 1])
         pos[:, :, i] = pos[:, :, i - 1] + vel[:, :, i - 1] * dt
+        if filter is not None:
+            pos[(pos[:, :, i] < filter[0]) | (pos[:, :, i] > filter[1]), i] = np.nan
     return pos
 
 
@@ -787,6 +790,7 @@ class SimulationManager(StorageManager):
         x_0: float,
         force: str,
         hist_sigma: float,
+        norm_sigma: Optional[bool] = False,
         measure: Optional[str] = "var",
         filter: Optional[list[float]] = None,
     ) -> dict:
@@ -796,21 +800,33 @@ class SimulationManager(StorageManager):
         # )
         # v2
         pos = simulate_traj_g(
-            N_p, N_loop, N_t, ntau, s, dt, x_0, force=forces_dict_2[force]
+            N_p,
+            N_loop,
+            N_t,
+            ntau,
+            s,
+            dt,
+            x_0,
+            force=forces_dict_2[force],
+            filter=filter,
         )
-        if filter is not None:
-            pos_filtered = pos.copy()
-            pos_filtered[
-                (pos_filtered < filter[0]) | (pos_filtered > filter[1])
-            ] = np.nan
-        else:
-            pos_filtered = pos
+        # if filter is not None:
+        #     pos_filtered = pos.copy()
+        #     pos_filtered[
+        #         (pos_filtered < filter[0]) | (pos_filtered > filter[1])
+        #     ] = np.nan
+        # else:
+        #     pos_filtered = pos
+        pos_filtered = pos
         if measure == "var":
             sim_var = np.nanvar(pos_filtered, axis=1)
         elif measure == "quantile":
             sim_var = np.nanquantile(pos_filtered, 0.842, axis=1)
+        if norm_sigma:
+            sb = hist_sigma
+        else:
+            sb = hist_sigma * np.sqrt(np.max(sim_var))
 
-        sb = hist_sigma * np.sqrt(np.max(sim_var))
         dx = 2 * sb / (N_x - 1)
         x_s = np.arange(-sb, sb + 1e-6, dx)
         bins = np.arange(-sb - dx / 2, sb + dx / 2 + 1e-6, dx)
