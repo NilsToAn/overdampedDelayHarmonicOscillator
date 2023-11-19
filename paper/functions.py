@@ -965,3 +965,31 @@ class SimulateRateFull(StorageManager):
         return {
             "sim_sur": sim_sur,
         }
+
+
+class SolverRateManager(StorageManager):
+    def main(self, N_t, N_x, sbs, ntau, s, dt, x_0, force, border, version):
+        dx = (sbs[1] - sbs[0]) / (N_x - 1)
+        x_s = sbs[0] + np.arange(N_x) * dx
+        i_zero = np.argmin((x_s - x_0) ** 2)
+        D = s**2 / 2
+
+        if ntau > 0:
+            # v2_1
+            if version == 2:
+                prop = get_prop_v2_1(x_s, forces_dict_2[force], D, dt)
+            # v3
+            if version == 3:
+                prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
+        else:
+            if version == 2:
+                prop = get_prop_v2_1(x_s, forces_dict_2["no_delay_" + force], D, dt)
+            if version == 3:
+                prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
+
+        R, _, end_states = create_R_v3(ntau, prop)
+        _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
+
+        num_sur = np.sum(hists[:, x_s < border], axis=1) / np.sum(hists, axis=1)
+
+        return {"num_sur": num_sur}
