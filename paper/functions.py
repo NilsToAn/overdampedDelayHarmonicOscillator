@@ -6,7 +6,7 @@ from scipy.linalg import expm
 from typing import Callable, Optional
 
 # from tqdm.notebook import tqdm
-from tqdm import tqdm
+# from tqdm import tqdm
 from scipy.sparse import csr_array, coo_array
 from scipy.special import factorial, erf
 import json
@@ -270,7 +270,7 @@ def get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states):
     p[initial_state] = 1.0
     one_time_p = np.empty((N_t, N_x))
     one_time_p[0] = np.sum(p[end_states], axis=1)
-    for i in tqdm(range(1, N_t), leave=False):
+    for i in range(1, N_t):
         p = R @ p
         one_time_p[i] = np.sum(p[end_states], axis=1)
 
@@ -306,11 +306,11 @@ def get_non_delayed_dyn(R, i_zero, N_t, N_x):
     p = np.zeros((N_t, N_x), dtype=float)
     p[0, i_zero] = 1.0
     if R.ndim == 2:
-        for i in tqdm(range(1, N_t), leave=False):
+        for i in range(1, N_t):
             p[i] = R @ p[i - 1]
         return p
     else:
-        for i in tqdm(range(1, N_t), leave=False):
+        for i in range(1, N_t):
             p[i] = R[i - 1] @ p[i - 1]
         return p
 
@@ -510,7 +510,7 @@ def simulate_traj(
     pos[:, :, : ntau + 1] = -border
     vel[:, :, :ntau] = 0
 
-    for i in tqdm(range(ntau + 1, N_t + ntau), leave=False):
+    for i in range(ntau + 1, N_t + ntau):
         vel[:, :, i - 1] += force(pos[:, :, i - ntau - 1])
         pos[:, :, i] = pos[:, :, i - 1] + vel[:, :, i - 1] * dt
     return pos
@@ -529,11 +529,9 @@ def simulate_traj_g(
 ):
     pos = np.empty((N_loop, N_p, N_t + ntau), dtype=float)
     vel = s * np.random.randn(N_loop, N_p, N_t + ntau - 1) * 1 / np.sqrt(dt)
-
     pos[:, :, : ntau + 1] = x_0
     vel[:, :, :ntau] = 0
-
-    for i in tqdm(range(ntau + 1, N_t + ntau), leave=False):
+    for i in range(ntau + 1, N_t + ntau):
         vel[:, :, i - 1] += force(pos[:, :, i - 1], pos[:, :, i - ntau - 1])
         pos[:, :, i] = pos[:, :, i - 1] + vel[:, :, i - 1] * dt
         if filter is not None:
@@ -760,7 +758,7 @@ class StorageManager:
             highst_idx = max([int(o.stem.split("_")[-1]) for o in exsisting_files])
         else:
             highst_idx = -1
-        filename = filename_base + f"{highst_idx+1}.txt"
+        filename = filename_base + f"{highst_idx+1}.pkl"
 
         with open(self.data_dir / filename, "wb") as file:
             pickle.dump(result, file)
@@ -935,3 +933,35 @@ class EigenvectorManager(StorageManager):
             eig_var = get_quantile_hist(main_evect[end_states].sum(axis=1), x_s)
 
         return {"eig_var": eig_var}
+
+
+class SimulateRateFull(StorageManager):
+    def main(
+        self,
+        N_p: int,
+        N_loop: int,
+        N_t: int,
+        ntau: int,
+        s: float,
+        dt: float,
+        x_0: float,
+        border: float,
+        force: str,
+        filter: Optional[list[float]] = None,
+    ) -> dict:
+        pos = simulate_traj_g(
+            N_p,
+            N_loop,
+            N_t,
+            ntau,
+            s,
+            dt,
+            x_0,
+            force=forces_dict_2[force],
+            filter=filter,
+        )
+        sim_sur = np.sum(pos < border, axis=1) / np.sum(~np.isnan(pos), axis=1)
+
+        return {
+            "sim_sur": sim_sur,
+        }

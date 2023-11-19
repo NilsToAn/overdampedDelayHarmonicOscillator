@@ -210,3 +210,7 @@ import numpy as np
 a = np.array([-np.inf, 1, np.nan, 2, 3, 4, np.inf])
 np.quantile(a[~np.isnan(a)], 0.7)
 # %%
+from pathlib import Path
+
+for path in Path("database").glob("*.txt"):
+    path.rename(str(path).replace(".txt", ".pkl"))
