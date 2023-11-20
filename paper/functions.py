@@ -849,28 +849,14 @@ class SolverManager(StorageManager):
         i_zero = np.argmin((x_s - x_0) ** 2)
         D = s**2 / 2
 
-        if ntau > 0:
-            # v1
-            # prop = get_prop_abs(x_s, force,D,ldt,dx)
-            # R, _, end_states = create_R(N_x, ntau, prop)
+        force_func = (
+            forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
+        )
 
-            # v2
-            # prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
-            # R, _, end_states = create_R_v1(N_x, ntau, prop)
-
-            # v2_1
-            if version == 2:
-                prop = get_prop_v2_1(x_s, forces_dict_2[force], D, dt)
-            # v3
-            if version == 3:
-                prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
-        else:
-            # R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
-            # hists = get_non_delayed_dyn(R, i_zero, N_t, N_x)
-            if version == 2:
-                prop = get_prop_v2_1(x_s, forces_dict_2["no_delay_" + force], D, dt)
-            if version == 3:
-                prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
+        if version == 2:
+            prop = get_prop_v2_1(x_s, force_func, D, dt)
+        if version == 3:
+            prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
         _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
@@ -887,39 +873,14 @@ class EigenvectorManager(StorageManager):
         x_s = np.arange(-sb, sb + 1e-6, dx)
         D = s**2 / 2
 
-        if ntau > 0:
-            # v1
-            # prop = get_prop_abs(x_s, force,D,ldt,dx)
-            # R, _, end_states = create_R(N_x, ntau, prop)
+        force_func = (
+            forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
+        )
 
-            # v2
-            # prop = get_prop_abs_v2(x_s, forces_dict[force], D, dt, dx)
-            # R, _, end_states = create_R_v1(N_x, ntau, prop)
-
-            # v2_1
-            if version == 2:
-                prop = get_prop_v2_1(x_s, forces_dict_2[force], D, dt)
-            # v3
-            if version == 3:
-                prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
-            # main_eval = np.abs(evals[0])
-        else:
-            # v2
-            # R = get_non_delayed_prop(x_s, forces_dict[force], D, dt, dx)
-            # evals, evect = scipy.sparse.linalg.eigs(R, k=4)
-            # main_eval = np.abs(evals[0])
-            # main_evect = np.real(evect[:, 0])
-            # if main_evect.sum() < 0:
-            #    main_evect *= -1
-            # eig_var = get_var_hist(main_evect, x_s)
-
-            # v2_1
-            if version == 2:
-                prop = get_prop_v2_1(x_s, forces_dict_2["no_delay_" + force], D, dt)
-
-            # v3
-            if version == 3:
-                prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
+        if version == 2:
+            prop = get_prop_v2_1(x_s, force_func, D, dt)
+        if version == 3:
+            prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
         evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
@@ -935,7 +896,7 @@ class EigenvectorManager(StorageManager):
         return {"eig_var": eig_var}
 
 
-class SimulateRateFull(StorageManager):
+class SimulateRateManager(StorageManager):
     def main(
         self,
         N_p: int,
@@ -947,8 +908,12 @@ class SimulateRateFull(StorageManager):
         x_0: float,
         border: float,
         force: str,
-        filter: Optional[list[float]] = None,
+        absorbing: bool = False,
     ) -> dict:
+        if absorbing:
+            filter = [-np.inf, border]
+        else:
+            filter = None
         pos = simulate_traj_g(
             N_p,
             N_loop,
@@ -960,7 +925,10 @@ class SimulateRateFull(StorageManager):
             force=forces_dict_2[force],
             filter=filter,
         )
-        sim_sur = np.sum(pos < border, axis=1) / np.sum(~np.isnan(pos), axis=1)
+        if absorbing:
+            sim_sur = np.mean(~np.isnan(pos), axis=1)
+        else:
+            sim_sur = np.sum(pos < border, axis=1) / np.sum(~np.isnan(pos), axis=1)
 
         return {
             "sim_sur": sim_sur,
@@ -968,28 +936,51 @@ class SimulateRateFull(StorageManager):
 
 
 class SolverRateManager(StorageManager):
-    def main(self, N_t, N_x, sbs, ntau, s, dt, x_0, force, border, version):
+    def main(self, N_t, N_x, sbs, ntau, s, dt, x_0, force, border, absorbing, version):
         dx = (sbs[1] - sbs[0]) / (N_x - 1)
         x_s = sbs[0] + np.arange(N_x) * dx
         i_zero = np.argmin((x_s - x_0) ** 2)
         D = s**2 / 2
 
-        if ntau > 0:
-            # v2_1
-            if version == 2:
-                prop = get_prop_v2_1(x_s, forces_dict_2[force], D, dt)
-            # v3
-            if version == 3:
-                prop = get_prop_v3(x_s, forces_dict_2[force], D, dt)
-        else:
-            if version == 2:
-                prop = get_prop_v2_1(x_s, forces_dict_2["no_delay_" + force], D, dt)
-            if version == 3:
-                prop = get_prop_v3(x_s, forces_dict_2["no_delay_" + force], D, dt)
+        force_func = (
+            forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
+        )
+
+        if version == 2:
+            prop = get_prop_v2_1(x_s, force_func, D, dt)
+        if version == 3:
+            prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
         _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
-
-        num_sur = np.sum(hists[:, x_s < border], axis=1) / np.sum(hists, axis=1)
+        if absorbing:
+            num_sur = np.sum(hists, axis=1) / np.sum(hists[0])
+        else:
+            num_sur = np.sum(hists[:, x_s < border], axis=1) / np.sum(hists, axis=1)
 
         return {"num_sur": num_sur}
+
+
+class EigenvectorRateManager(StorageManager):
+    def main(self, N_x, sbs, ntau, s, dt, force, version):
+        dx = (sbs[1] - sbs[0]) / (N_x - 1)
+        x_s = sbs[0] + np.arange(N_x) * dx
+        D = s**2 / 2
+
+        force_func = (
+            forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
+        )
+
+        if version == 2:
+            prop = get_prop_v2_1(x_s, force_func, D, dt)
+        if version == 3:
+            prop = get_prop_v3(x_s, force_func, D, dt)
+
+        R, _, end_states = create_R_v3(ntau, prop)
+        evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
+        # main_eval = np.abs(evals[0])
+        main_evect = np.real(evect[:, 0])
+        if main_evect.sum() < 0:
+            main_evect *= -1
+
+        return {"eig_rate": -np.log(evals[0]) / dt}
