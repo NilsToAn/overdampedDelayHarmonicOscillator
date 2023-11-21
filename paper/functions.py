@@ -688,12 +688,6 @@ def no_delay_cubic_force_2(x_0, x_t):
 
 
 def cusp_force_2(x_0, x_t, thresh=1e-7):
-    # if x_t < -thresh:
-    #    return -(x_t + 1)
-    # elif x_t > thresh:
-    #    return -(x_t - 1)
-    # else:
-    #    return 0
     b = np.where(x_t < -thresh, -(x_t + 1), x_t)
     b = np.where(x_t > thresh, -(x_t - 1), b)
     b = np.where(np.abs(x_t) < thresh, 0, b)
@@ -704,12 +698,6 @@ def cusp_force_2(x_0, x_t, thresh=1e-7):
 
 
 def no_delay_cusp_force_2(x_0, x_t, thresh=1e-7):
-    # if x_0 < -thresh:
-    #    return -(x_0 + 1)
-    # elif x_0 > thresh:
-    #    return -(x_0 - 1)
-    # else:
-    #    return 0
     b = np.where(x_0 < -thresh, -(x_0 + 1), x_t)
     b = np.where(x_0 > thresh, -(x_0 - 1), b)
     b = np.where(np.abs(x_0) < thresh, 0, b)
