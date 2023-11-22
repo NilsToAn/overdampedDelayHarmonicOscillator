@@ -85,6 +85,49 @@ def get_prop_abs_v2(x_s, force, D, dt, dx, N_border=None, side="lr"):
     return prop_abs
 
 
+def get_prop_v1_1(
+    x_s: np.ndarray, f: Callable[..., np.ndarray], D: float, dt: float
+) -> np.ndarray:
+    """_summary_
+
+    Parameters
+    ----------
+    x_s : np.ndarray
+        The spatial discritisation
+    f : Callable
+        The function f(x_0, x_t) vectorized
+    D : float
+        Diffusitivity, s**2/2
+    dt : float
+        temporal spacing
+
+    Returns
+    -------
+    np.ndarray
+        x^t_f,x^t_i, x_f, x_i
+    """
+    N_x = len(x_s)
+    dx = x_s[1] - x_s[0]
+    # dim as , x^t_f,x^t_i, x_f, x_i
+
+    p_or_m = np.array([-1.0, 1.0])[None, None, :, None]
+    # x_step = p_or_m * dx
+    x_i = x_s[None, None, None, :]
+    x_t_i = x_s[None, :, None, None]
+    # x_t_f = x_s[:, None, None, None]
+    crazy_tensor = np.empty((N_x, N_x, 2, N_x), dtype=float)
+    crazy_tensor[:] = f(x_i, x_t_i)
+    U_raw = D / dx**2 * np.exp(p_or_m * crazy_tensor * dx / (2 * D))
+    U_full = np.zeros([N_x] * 4, dtype=float)
+    U_full[:, :, np.arange(0, N_x, 1), np.arange(0, N_x, 1)] = -(
+        U_raw[:, :, 0, :] + U_raw[:, :, 1, :]
+    )
+    U_full[:, :, np.arange(0, N_x - 1, 1), np.arange(1, N_x, 1)] = U_raw[:, :, 0, 1:]
+    U_full[:, :, np.arange(1, N_x, 1), np.arange(0, N_x - 1, 1)] = U_raw[:, :, 1, :-1]
+    prob = expm(U_full * dt)
+    return prob
+
+
 def get_prop_v2_1(
     x_s: np.ndarray, f: Callable[..., np.ndarray], D: float, dt: float
 ) -> np.ndarray:
@@ -277,42 +320,42 @@ def get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states):
     return p, one_time_p
 
 
-def get_non_delayed_prop(x_s, force, D, dt, dx, N_border=None, Fp=None, Fl=None):
-    N_x = len(x_s)
-    mx_s = np.arange(x_s[0] - dx / 2, x_s[-1] + dx / 2 + dx / 4, dx)
-    if Fp is None or Fl is None:
-        F = force(mx_s)
-    if Fp is None:
-        Fp = F
-    if Fl is None:
-        Fl = F
-    R_abs = np.zeros((N_x, N_x))
+# def get_non_delayed_prop(x_s, force, D, dt, dx, N_border=None, Fp=None, Fl=None):
+#     N_x = len(x_s)
+#     mx_s = np.arange(x_s[0] - dx / 2, x_s[-1] + dx / 2 + dx / 4, dx)
+#     if Fp is None or Fl is None:
+#         F = force(mx_s)
+#     if Fp is None:
+#         Fp = F
+#     if Fl is None:
+#         Fl = F
+#     R_abs = np.zeros((N_x, N_x))
 
-    lp = D / dx**2 * np.exp((Fp * dx / D) / 2)  # r_i->i+1
-    ln = D / dx**2 * np.exp(-(Fl * dx / D) / 2)  # r_i+1->i
+#     lp = D / dx**2 * np.exp((Fp * dx / D) / 2)  # r_i->i+1
+#     ln = D / dx**2 * np.exp(-(Fl * dx / D) / 2)  # r_i+1->i
 
-    R_abs[np.arange(0, N_x), np.arange(0, N_x)] = -(
-        lp[1:] + ln[:-1]
-    )  # -(r_i->i+1 + r_i->i-1) ????
-    R_abs[np.arange(0, N_x - 1), np.arange(1, N_x)] = ln[1:-1]
-    R_abs[np.arange(1, N_x), np.arange(0, N_x - 1)] = lp[1:-1]
-    prop_abs = expm(
-        R_abs * dt,
-    )
-    return prop_abs
+#     R_abs[np.arange(0, N_x), np.arange(0, N_x)] = -(
+#         lp[1:] + ln[:-1]
+#     )  # -(r_i->i+1 + r_i->i-1) ????
+#     R_abs[np.arange(0, N_x - 1), np.arange(1, N_x)] = ln[1:-1]
+#     R_abs[np.arange(1, N_x), np.arange(0, N_x - 1)] = lp[1:-1]
+#     prop_abs = expm(
+#         R_abs * dt,
+#     )
+#     return prop_abs
 
 
-def get_non_delayed_dyn(R, i_zero, N_t, N_x):
-    p = np.zeros((N_t, N_x), dtype=float)
-    p[0, i_zero] = 1.0
-    if R.ndim == 2:
-        for i in range(1, N_t):
-            p[i] = R @ p[i - 1]
-        return p
-    else:
-        for i in range(1, N_t):
-            p[i] = R[i - 1] @ p[i - 1]
-        return p
+# def get_non_delayed_dyn(R, i_zero, N_t, N_x):
+#     p = np.zeros((N_t, N_x), dtype=float)
+#     p[0, i_zero] = 1.0
+#     if R.ndim == 2:
+#         for i in range(1, N_t):
+#             p[i] = R @ p[i - 1]
+#         return p
+#     else:
+#         for i in range(1, N_t):
+#             p[i] = R[i - 1] @ p[i - 1]
+#         return p
 
 
 # Analytical
@@ -401,14 +444,14 @@ def get_lin_var_short_time(tau, a, b, s):
 # get_theo_var = np.vectorize(get_theo_var, excluded=(1, 2))
 
 
-def l(k, tau, t, max_p=40):  # noqa: E743 (linting ignore short name)
-    i = np.arange(0, max_p, 1)
-    return np.sum(
-        (-k) ** i / factorial(i) * (t - i * tau) ** i * np.heaviside(t - i * tau, 1)
-    )
+# def l(k, tau, t, max_p=40):  # noqa: E743 (linting ignore short name)
+#     i = np.arange(0, max_p, 1)
+#     return np.sum(
+#         (-k) ** i / factorial(i) * (t - i * tau) ** i * np.heaviside(t - i * tau, 1)
+#     )
 
 
-l = np.vectorize(l)  # noqa: E741 (linting ignore short name)
+# l = np.vectorize(l)  # noqa: E741 (linting ignore short name)
 
 
 def l_two_time(a: float, b: float, tau: float, t: float, max_p: int = 40):
@@ -494,26 +537,26 @@ def get_eq_times(tau, D, eq_perc, a, b):
 
 
 # Simulation
-def simulate_traj(
-    N_p: int,
-    N_loop: int,
-    N_t: int,
-    ntau: int,
-    s: float,
-    dt: float,
-    border: float,
-    force: Callable,
-):
-    pos = np.empty((N_loop, N_p, N_t + ntau))
-    vel = s * np.random.randn(N_loop, N_p, N_t + ntau - 1) * 1 / np.sqrt(dt)
+# def simulate_traj(
+#     N_p: int,
+#     N_loop: int,
+#     N_t: int,
+#     ntau: int,
+#     s: float,
+#     dt: float,
+#     border: float,
+#     force: Callable,
+# ):
+#     pos = np.empty((N_loop, N_p, N_t + ntau))
+#     vel = s * np.random.randn(N_loop, N_p, N_t + ntau - 1) * 1 / np.sqrt(dt)
 
-    pos[:, :, : ntau + 1] = -border
-    vel[:, :, :ntau] = 0
+#     pos[:, :, : ntau + 1] = -border
+#     vel[:, :, :ntau] = 0
 
-    for i in range(ntau + 1, N_t + ntau):
-        vel[:, :, i - 1] += force(pos[:, :, i - ntau - 1])
-        pos[:, :, i] = pos[:, :, i - 1] + vel[:, :, i - 1] * dt
-    return pos
+#     for i in range(ntau + 1, N_t + ntau):
+#         vel[:, :, i - 1] += force(pos[:, :, i - ntau - 1])
+#         pos[:, :, i] = pos[:, :, i - 1] + vel[:, :, i - 1] * dt
+#     return pos
 
 
 def simulate_traj_g(
@@ -840,10 +883,11 @@ class SolverManager(StorageManager):
         force_func = (
             forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
         )
-
-        if version == 2:
+        if version == 1:
+            prop = get_prop_v1_1(x_s, force_func, D, dt)
+        elif version == 2:
             prop = get_prop_v2_1(x_s, force_func, D, dt)
-        if version == 3:
+        elif version == 3:
             prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
@@ -864,10 +908,11 @@ class EigenvectorManager(StorageManager):
         force_func = (
             forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
         )
-
-        if version == 2:
+        if version == 1:
+            prop = get_prop_v1_1(x_s, force_func, D, dt)
+        elif version == 2:
             prop = get_prop_v2_1(x_s, force_func, D, dt)
-        if version == 3:
+        elif version == 3:
             prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
@@ -933,10 +978,11 @@ class SolverRateManager(StorageManager):
         force_func = (
             forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
         )
-
-        if version == 2:
+        if version == 1:
+            prop = get_prop_v1_1(x_s, force_func, D, dt)
+        elif version == 2:
             prop = get_prop_v2_1(x_s, force_func, D, dt)
-        if version == 3:
+        elif version == 3:
             prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
@@ -958,10 +1004,11 @@ class EigenvectorRateManager(StorageManager):
         force_func = (
             forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
         )
-
-        if version == 2:
+        if version == 1:
+            prop = get_prop_v1_1(x_s, force_func, D, dt)
+        elif version == 2:
             prop = get_prop_v2_1(x_s, force_func, D, dt)
-        if version == 3:
+        elif version == 3:
             prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
