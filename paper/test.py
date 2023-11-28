@@ -214,3 +214,10 @@ from pathlib import Path
 
 for path in Path("database").glob("*.txt"):
     path.rename(str(path).replace(".txt", ".pkl"))
+
+# %%
+import numpy as np
+
+tests = np.random.randint(1, 7, (100000, 100))
+rolls = np.argmax(tests == 1, axis=1) + 1
+np.mean(rolls)

@@ -35,6 +35,8 @@ def setup_matplotlib():
         ),
     }
     mpl.rcParams.update(pgf_with_latex)
+    mpl.rc("text", usetex=True)
+    mpl.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
 
     mpl.rcParams["axes.prop_cycle"] = mpl.cycler(
         color=[
