@@ -5,6 +5,14 @@ one_col = 3.37
 two_col = 6.69
 std_height = one_col / 1.62
 
+sim_plt_set = {"color": "C0", "marker": ".", "ls": "None", "label": "sim"}
+num_plt_set = {"color": "C1", "marker": ".", "ls": "--", "label": "dynamical"}
+eigenv_plt_set = {"color": "C2", "marker": ".", "ls": "--", "label": "steady state"}
+exact_plt_set = {"color": "C3", "marker": "None", "ls": "-.", "label": "exact"}
+short_plt_set = {"color": "C4", "marker": "None", "ls": "-.", "label": "short delay"}
+kramers_plt_set = {"color": "C5", "marker": "None", "ls": "-.", "label": "Kramers"}
+cusp_til_plt_set = {"color": "C6", "marker": "None", "ls": "-.", "label": "time-local"}
+
 
 def setup_matplotlib():
     fontsize = 8
