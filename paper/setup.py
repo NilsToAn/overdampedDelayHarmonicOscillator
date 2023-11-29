@@ -9,7 +9,7 @@ sim_plt_set = {"color": "C0", "marker": ".", "ls": "None", "label": "sim"}
 num_plt_set = {"color": "C1", "marker": ".", "ls": "--", "label": "dynamical"}
 eigenv_plt_set = {"color": "C2", "marker": ".", "ls": "--", "label": "steady state"}
 exact_plt_set = {"color": "C3", "marker": "None", "ls": "-.", "label": "exact"}
-short_plt_set = {"color": "C4", "marker": "None", "ls": "-.", "label": "short delay"}
+short_plt_set = {"color": "C4", "marker": "None", "ls": "-.", "label": "small delay"}
 kramers_plt_set = {"color": "C5", "marker": "None", "ls": "-.", "label": "Kramers"}
 cusp_til_plt_set = {"color": "C6", "marker": "None", "ls": "-.", "label": "time-local"}
 
