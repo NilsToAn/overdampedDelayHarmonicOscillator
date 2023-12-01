@@ -17,72 +17,72 @@ import datetime
 #  Nummerical (new)
 
 
-def get_prop_abs(x_s, force, D, dt, dx, N_border=None):
-    # x(t-tau), x(t), res
-    N_x = len(x_s)
-    R_abs = np.zeros((N_x, N_x, N_x))
+# def get_prop_abs(x_s, force, D, dt, dx, N_border=None):
+#     # x(t-tau), x(t), res
+#     N_x = len(x_s)
+#     R_abs = np.zeros((N_x, N_x, N_x))
 
-    F = force(x_s)
-    lp = D / dx**2 * np.exp((F * dx / D) / 2)  # r_i->i+1
-    ln = D / dx**2 * np.exp(-(F * dx / D) / 2)  # r_i+1->i
+#     F = force(x_s)
+#     lp = D / dx**2 * np.exp((F * dx / D) / 2)  # r_i->i+1
+#     ln = D / dx**2 * np.exp(-(F * dx / D) / 2)  # r_i+1->i
 
-    R_abs[:, np.arange(0, N_x), np.arange(0, N_x)] = -(
-        lp[:, None] + ln[:, None]
-    )  # -(r_i->i+1 + r_i->i-1) ????
-    R_abs[:, np.arange(0, N_x - 1), np.arange(1, N_x)] = ln[:, None]
-    R_abs[:, np.arange(1, N_x), np.arange(0, N_x - 1)] = lp[:, None]
-    prop_abs = expm(
-        R_abs * dt,
-    )
-    return prop_abs
+#     R_abs[:, np.arange(0, N_x), np.arange(0, N_x)] = -(
+#         lp[:, None] + ln[:, None]
+#     )  # -(r_i->i+1 + r_i->i-1) ????
+#     R_abs[:, np.arange(0, N_x - 1), np.arange(1, N_x)] = ln[:, None]
+#     R_abs[:, np.arange(1, N_x), np.arange(0, N_x - 1)] = lp[:, None]
+#     prop_abs = expm(
+#         R_abs * dt,
+#     )
+#     return prop_abs
 
 
-def get_prop_abs_v2(x_s, force, D, dt, dx, N_border=None, side="lr"):
-    # x(t-tau), x(t), res
-    N_x = len(x_s)
-    half_x_s = np.arange(x_s[0], x_s[-1] + dx / 4, dx / 2)
+# def get_prop_abs_v2(x_s, force, D, dt, dx, N_border=None, side="lr"):
+#     # x(t-tau), x(t), res
+#     N_x = len(x_s)
+#     half_x_s = np.arange(x_s[0], x_s[-1] + dx / 4, dx / 2)
 
-    R_abs = np.zeros((len(half_x_s), N_x, N_x))
+#     R_abs = np.zeros((len(half_x_s), N_x, N_x))
 
-    F = force(half_x_s)
-    lp = D / dx**2 * np.exp((F * dx / D) / 2)  # r_i->i+1
-    ln = D / dx**2 * np.exp(-(F * dx / D) / 2)  # r_i+1->i
-    if side == "r":
-        if N_border is None:
-            N_border = N_x
-        R_abs[:, 0, 0] = -lp
-        R_abs[:, np.arange(1, N_border), np.arange(1, N_border)] = -(
-            lp[:, None] + ln[:, None]
-        )  # -(r_i->i+1 + r_i->i-1) ????
-        R_abs[:, np.arange(0, N_border - 1), np.arange(1, N_border)] = ln[:, None]
-        R_abs[:, np.arange(1, N_border), np.arange(0, N_border - 1)] = lp[:, None]
-    elif side == "l":
-        if N_border is None:
-            N_border = 0
-        R_abs[:, -1, -1] = -ln
-        R_abs[:, np.arange(N_border, N_x - 1), np.arange(N_border, N_x - 1)] = -(
-            lp[:, None] + ln[:, None]
-        )  # -(r_i->i+1 + r_i->i-1) ????
-        R_abs[:, np.arange(N_border, N_x - 1), np.arange(N_border + 1, N_x)] = ln[
-            :, None
-        ]
-        R_abs[:, np.arange(N_border + 1, N_x), np.arange(N_border, N_x - 1)] = lp[
-            :, None
-        ]
-    elif side == "lr":
-        if N_border is not None:
-            print("for lr N_border is ignored")
-        R_abs[:, np.arange(0, N_x), np.arange(0, N_x)] = -(
-            lp[:, None] + ln[:, None]
-        )  # -(r_i->i+1 + r_i->i-1) ????
-        R_abs[:, np.arange(0, N_x - 1), np.arange(1, N_x)] = ln[:, None]
-        R_abs[:, np.arange(1, N_x), np.arange(0, N_x - 1)] = lp[:, None]
-    prop_abs = expm(
-        R_abs * dt,
-    )
-    if np.any(np.isnan(prop_abs)):
-        print("CAREFUL: nan in prop, maybe because of to high values in potential")
-    return prop_abs
+#     F = force(half_x_s)
+#     lp = D / dx**2 * np.exp((F * dx / D) / 2)  # r_i->i+1
+#     ln = D / dx**2 * np.exp(-(F * dx / D) / 2)  # r_i+1->i
+#     if side == "r":
+#         if N_border is None:
+#             N_border = N_x
+#         R_abs[:, 0, 0] = -lp
+#         R_abs[:, np.arange(1, N_border), np.arange(1, N_border)] = -(
+#             lp[:, None] + ln[:, None]
+#         )  # -(r_i->i+1 + r_i->i-1) ????
+#         R_abs[:, np.arange(0, N_border - 1), np.arange(1, N_border)] = ln[:, None]
+#         R_abs[:, np.arange(1, N_border), np.arange(0, N_border - 1)] = lp[:, None]
+#     elif side == "l":
+#         if N_border is None:
+#             N_border = 0
+#         R_abs[:, -1, -1] = -ln
+#         R_abs[:, np.arange(N_border, N_x - 1), np.arange(N_border, N_x - 1)] = -(
+#             lp[:, None] + ln[:, None]
+#         )  # -(r_i->i+1 + r_i->i-1) ????
+#         R_abs[:, np.arange(N_border, N_x - 1), np.arange(N_border + 1, N_x)] = ln[
+#             :, None
+#         ]
+#         R_abs[:, np.arange(N_border + 1, N_x), np.arange(N_border, N_x - 1)] = lp[
+#             :, None
+#         ]
+#     elif side == "lr":
+#         if N_border is not None:
+#             print("for lr N_border is ignored")
+#         R_abs[:, np.arange(0, N_x), np.arange(0, N_x)] = -(
+#             lp[:, None] + ln[:, None]
+#         )  # -(r_i->i+1 + r_i->i-1) ????
+#         R_abs[:, np.arange(0, N_x - 1), np.arange(1, N_x)] = ln[:, None]
+#         R_abs[:, np.arange(1, N_x), np.arange(0, N_x - 1)] = lp[:, None]
+#     prop_abs = expm(
+#         R_abs * dt,
+#     )
+#     if np.any(np.isnan(prop_abs)):
+#         print("CAREFUL: nan in prop, maybe because of to high values in potential")
+#     return prop_abs
 
 
 def get_prop_v1_1(
@@ -170,95 +170,95 @@ def get_prop_v2_1(
     return prob
 
 
-def get_prop_v3(x_s: np.ndarray, f: Callable, D: float, dt: float) -> np.ndarray:
-    """_summary_
+# def get_prop_v3(x_s: np.ndarray, f: Callable, D: float, dt: float) -> np.ndarray:
+#     """_summary_
 
-    Parameters
-    ----------
-    x_s : np.ndarray
-        The spatial discritisation
-    f : Callable
-        The function f(x_0, x_t) vectorized
-    D : float
-        Diffusitivity, s**2/2
-    dt : float
-        temporal spacing
+#     Parameters
+#     ----------
+#     x_s : np.ndarray
+#         The spatial discritisation
+#     f : Callable
+#         The function f(x_0, x_t) vectorized
+#     D : float
+#         Diffusitivity, s**2/2
+#     dt : float
+#         temporal spacing
 
-    Returns
-    -------
-    np.ndarray
-        x^t_f,x^t_i, x_f, x_i
-    """
-    N_x = len(x_s)
-    dx = x_s[1] - x_s[0]
-    # dim as , x^t_f,x^t_i, x_f, x_i ,t
-    int_t = np.linspace(0, 1, 40)[None, None, None, None, :]
-    p_or_m = (np.array([-1, 1]) * dx)[None, None, :, None, None]
-    x_i = x_s[None, None, None, :, None]
-    x_t_i = x_s[None, :, None, None, None]
-    x_t_f = x_s[:, None, None, None, None]
-    crazy_tensor = f(x_i + int_t * p_or_m, x_t_i + int_t * (x_t_f - x_t_i))
-    U_raw = D / dx**2 * np.mean(np.exp(p_or_m * crazy_tensor / (2 * D)), axis=4)
-    U_full = np.zeros([N_x] * 4)
-    U_full[:, :, np.arange(0, N_x, 1), np.arange(0, N_x, 1)] = -(
-        U_raw[:, :, 0, :] + U_raw[:, :, 1, :]
-    )
-    U_full[:, :, np.arange(0, N_x - 1, 1), np.arange(1, N_x, 1)] = U_raw[:, :, 0, 1:]
-    U_full[:, :, np.arange(1, N_x, 1), np.arange(0, N_x - 1, 1)] = U_raw[:, :, 1, :-1]
-    prob = expm(U_full * dt)
-    return prob
-
-
-def create_R(N_x, ntau, prop):
-    all_states = np.arange(0, N_x ** (ntau + 1))
-
-    # staetes # 1 * x(t-tau), N_x*x(t-tau1+1dt), ... , N_x**ntau * x(t)
-
-    lm = all_states % N_x  # mean t-tau state
-    lt = all_states // N_x ** (ntau)  # t state
-    all_next_states = (all_states // N_x)[:, None] + (
-        (N_x**ntau) * (np.arange(0, N_x))
-    )[None, :]
-
-    R = coo_array(
-        (
-            prop[lm, :, lt].flatten(),
-            (all_next_states.flatten(), all_states.repeat(N_x)),
-        ),
-        shape=(N_x ** (ntau + 1), N_x ** (ntau + 1)),
-    )
-
-    R = csr_array(R)
-    end_states = np.stack(
-        [all_states[all_states // N_x**ntau == i] for i in range(N_x)]
-    )
-    return R, all_states, end_states
+#     Returns
+#     -------
+#     np.ndarray
+#         x^t_f,x^t_i, x_f, x_i
+#     """
+#     N_x = len(x_s)
+#     dx = x_s[1] - x_s[0]
+#     # dim as , x^t_f,x^t_i, x_f, x_i ,t
+#     int_t = np.linspace(0, 1, 40)[None, None, None, None, :]
+#     p_or_m = (np.array([-1, 1]) * dx)[None, None, :, None, None]
+#     x_i = x_s[None, None, None, :, None]
+#     x_t_i = x_s[None, :, None, None, None]
+#     x_t_f = x_s[:, None, None, None, None]
+#     crazy_tensor = f(x_i + int_t * p_or_m, x_t_i + int_t * (x_t_f - x_t_i))
+#     U_raw = D / dx**2 * np.mean(np.exp(p_or_m * crazy_tensor / (2 * D)), axis=4)
+#     U_full = np.zeros([N_x] * 4)
+#     U_full[:, :, np.arange(0, N_x, 1), np.arange(0, N_x, 1)] = -(
+#         U_raw[:, :, 0, :] + U_raw[:, :, 1, :]
+#     )
+#     U_full[:, :, np.arange(0, N_x - 1, 1), np.arange(1, N_x, 1)] = U_raw[:, :, 0, 1:]
+#     U_full[:, :, np.arange(1, N_x, 1), np.arange(0, N_x - 1, 1)] = U_raw[:, :, 1, :-1]
+#     prob = expm(U_full * dt)
+#     return prob
 
 
-def create_R_v1(N_x, ntau, prop):
-    all_states = np.arange(0, N_x ** (ntau + 1))
+# def create_R(N_x, ntau, prop):
+#     all_states = np.arange(0, N_x ** (ntau + 1))
 
-    # staetes # 1 * x(t-tau), N_x*x(t-tau1+1dt), ... , N_x**ntau * x(t)
+#     # staetes # 1 * x(t-tau), N_x*x(t-tau1+1dt), ... , N_x**ntau * x(t)
 
-    lm = all_states % N_x + (all_states // N_x) % N_x  # mean t-tau state
-    lt = all_states // N_x ** (ntau)  # t state
-    all_next_states = (all_states // N_x)[:, None] + (
-        (N_x**ntau) * (np.arange(0, N_x))
-    )[None, :]
+#     lm = all_states % N_x  # mean t-tau state
+#     lt = all_states // N_x ** (ntau)  # t state
+#     all_next_states = (all_states // N_x)[:, None] + (
+#         (N_x**ntau) * (np.arange(0, N_x))
+#     )[None, :]
 
-    R = coo_array(
-        (
-            prop[lm, :, lt].flatten(),
-            (all_next_states.flatten(), all_states.repeat(N_x)),
-        ),
-        shape=(N_x ** (ntau + 1), N_x ** (ntau + 1)),
-    )
+#     R = coo_array(
+#         (
+#             prop[lm, :, lt].flatten(),
+#             (all_next_states.flatten(), all_states.repeat(N_x)),
+#         ),
+#         shape=(N_x ** (ntau + 1), N_x ** (ntau + 1)),
+#     )
 
-    R = csr_array(R)
-    end_states = np.stack(
-        [all_states[all_states // N_x**ntau == i] for i in range(N_x)]
-    )
-    return R, all_states, end_states
+#     R = csr_array(R)
+#     end_states = np.stack(
+#         [all_states[all_states // N_x**ntau == i] for i in range(N_x)]
+#     )
+#     return R, all_states, end_states
+
+
+# def create_R_v1(N_x, ntau, prop):
+#     all_states = np.arange(0, N_x ** (ntau + 1))
+
+#     # staetes # 1 * x(t-tau), N_x*x(t-tau1+1dt), ... , N_x**ntau * x(t)
+
+#     lm = all_states % N_x + (all_states // N_x) % N_x  # mean t-tau state
+#     lt = all_states // N_x ** (ntau)  # t state
+#     all_next_states = (all_states // N_x)[:, None] + (
+#         (N_x**ntau) * (np.arange(0, N_x))
+#     )[None, :]
+
+#     R = coo_array(
+#         (
+#             prop[lm, :, lt].flatten(),
+#             (all_next_states.flatten(), all_states.repeat(N_x)),
+#         ),
+#         shape=(N_x ** (ntau + 1), N_x ** (ntau + 1)),
+#     )
+
+#     R = csr_array(R)
+#     end_states = np.stack(
+#         [all_states[all_states // N_x**ntau == i] for i in range(N_x)]
+#     )
+#     return R, all_states, end_states
 
 
 def create_R_v3(ntau: int, prop: np.ndarray):
@@ -599,99 +599,99 @@ def get_var_hist(hists, x_s):
         assert "Wrong number of dim in hists"
 
 
-def get_quantile_hist(hists, x_s, q=0.842):
-    if isinstance(hists, list):
-        hists = np.stack(hists)
-    if hists.ndim == 2:
-        p = hists / np.sum(hists, axis=1)[:, None]
-        q_dis = np.cumsum(p, axis=1) - q
-        cross = np.where((q_dis[:, :-1] * q_dis[:, 1:]) < 0)
-        x1 = x_s[cross[1]]
-        x2 = x_s[cross[1] + 1]
-        y1 = q_dis[cross[0], cross[1]]
-        y2 = q_dis[cross[0], cross[1] + 1]
-        return (-y2 * (x2 - x1) / (y2 - y1) + x2 + (x_s[1] - x_s[0]) / 2) ** 2
-    if hists.ndim == 1:
-        p = hists / np.sum(hists)
-        q_dis = np.cumsum(p) - q
-        cross = np.where((q_dis[:-1] * q_dis[1:]) < 0)
-        x1 = x_s[cross[0]]
-        x2 = x_s[cross[0] + 1]
-        y1 = q_dis[cross[0]]
-        y2 = q_dis[cross[0] + 1]
-        return (-y2 * (x2 - x1) / (y2 - y1) + x2 + (x_s[1] - x_s[0]) / 2) ** 2
-    else:
-        assert "Wrong number of dim in hists"
+# def get_quantile_hist(hists, x_s, q=0.842):
+#     if isinstance(hists, list):
+#         hists = np.stack(hists)
+#     if hists.ndim == 2:
+#         p = hists / np.sum(hists, axis=1)[:, None]
+#         q_dis = np.cumsum(p, axis=1) - q
+#         cross = np.where((q_dis[:, :-1] * q_dis[:, 1:]) < 0)
+#         x1 = x_s[cross[1]]
+#         x2 = x_s[cross[1] + 1]
+#         y1 = q_dis[cross[0], cross[1]]
+#         y2 = q_dis[cross[0], cross[1] + 1]
+#         return (-y2 * (x2 - x1) / (y2 - y1) + x2 + (x_s[1] - x_s[0]) / 2) ** 2
+#     if hists.ndim == 1:
+#         p = hists / np.sum(hists)
+#         q_dis = np.cumsum(p) - q
+#         cross = np.where((q_dis[:-1] * q_dis[1:]) < 0)
+#         x1 = x_s[cross[0]]
+#         x2 = x_s[cross[0] + 1]
+#         y1 = q_dis[cross[0]]
+#         y2 = q_dis[cross[0] + 1]
+#         return (-y2 * (x2 - x1) / (y2 - y1) + x2 + (x_s[1] - x_s[0]) / 2) ** 2
+#     else:
+#         assert "Wrong number of dim in hists"
 
 
-def get_steady_mean(data, i=None, max_err=1, thresh=0.1, min_states=5):
-    if i is None:
-        i = len(data) - 1
-    ref_var = data[i]
-    test_points = data[i::-1]
-    mask = np.cumprod(np.abs(test_points - ref_var) < ref_var * thresh).astype(bool)
-    if np.sum(mask) < min_states:
-        return False
-    steady_points = test_points[mask]
-    relerr = (
-        np.std(steady_points) / np.sqrt(len(steady_points)) / np.mean(steady_points)
-    )
-    if relerr < max_err:
-        return np.mean(steady_points), np.std(steady_points) / np.sqrt(
-            len(steady_points)
-        )
-    return False
+# def get_steady_mean(data, i=None, max_err=1, thresh=0.1, min_states=5):
+#     if i is None:
+#         i = len(data) - 1
+#     ref_var = data[i]
+#     test_points = data[i::-1]
+#     mask = np.cumprod(np.abs(test_points - ref_var) < ref_var * thresh).astype(bool)
+#     if np.sum(mask) < min_states:
+#         return False
+#     steady_points = test_points[mask]
+#     relerr = (
+#         np.std(steady_points) / np.sqrt(len(steady_points)) / np.mean(steady_points)
+#     )
+#     if relerr < max_err:
+#         return np.mean(steady_points), np.std(steady_points) / np.sqrt(
+#             len(steady_points)
+#         )
+#     return False
 
 
-def get_ana_hist_var(N_x: int, dx: float, var: float):
-    """Calculates the variance based on a histogram from a gaussfunction
-    to get error due to boundarys (no integration from -inf to inf) and
-    discretisation.
+# def get_ana_hist_var(N_x: int, dx: float, var: float):
+#     """Calculates the variance based on a histogram from a gaussfunction
+#     to get error due to boundarys (no integration from -inf to inf) and
+#     discretisation.
 
-    Parameters
-    ----------
-    N_x : int
-        Number of bins has to be odd,(symmetric boundarys and zero)
-    dx : float
-        bin size
-    var : float
-        variance of true gauss
+#     Parameters
+#     ----------
+#     N_x : int
+#         Number of bins has to be odd,(symmetric boundarys and zero)
+#     dx : float
+#         bin size
+#     var : float
+#         variance of true gauss
 
-    Returns
-    -------
-    float
-        varianze from hist
-    """
-    if N_x % 2 != 1:
-        print("Unable for even number of bins")
-        return None
+#     Returns
+#     -------
+#     float
+#         varianze from hist
+#     """
+#     if N_x % 2 != 1:
+#         print("Unable for even number of bins")
+#         return None
 
-    ks = np.arange(1, (N_x - 1) / 2, dtype=int)
-    dx_tilde = dx / np.sqrt(2 * var)
-    summand = np.sum(-(2 * ks + 1) * erf((ks + 1 / 2) * dx_tilde))
-    A = 1 / (erf(N_x / 2 * dx_tilde))
-    print(summand, A)
-    return (
-        A
-        * dx**2
-        * (
-            -erf(1 / 2 * dx_tilde)
-            + summand
-            + ((N_x - 1) / 2) ** 2 * erf((N_x / 2 * dx_tilde))
-        )
-    )
+#     ks = np.arange(1, (N_x - 1) / 2, dtype=int)
+#     dx_tilde = dx / np.sqrt(2 * var)
+#     summand = np.sum(-(2 * ks + 1) * erf((ks + 1 / 2) * dx_tilde))
+#     A = 1 / (erf(N_x / 2 * dx_tilde))
+#     print(summand, A)
+#     return (
+#         A
+#         * dx**2
+#         * (
+#             -erf(1 / 2 * dx_tilde)
+#             + summand
+#             + ((N_x - 1) / 2) ** 2 * erf((N_x / 2 * dx_tilde))
+#         )
+#     )
 
 
 # Forces
-def linear_force(x):
-    return -x
+# def linear_force(x):
+#     return -x
 
 
-def cubic_force(x):
-    return -(x**3)
+# def cubic_force(x):
+#     return -(x**3)
 
 
-forces_dict = {"linear": linear_force, "cubic": cubic_force}
+# forces_dict = {"linear": linear_force, "cubic": cubic_force}
 
 
 def linear_force_2(x_0, x_t):
@@ -887,15 +887,15 @@ class SolverManager(StorageManager):
             prop = get_prop_v1_1(x_s, force_func, D, dt)
         elif version == 2:
             prop = get_prop_v2_1(x_s, force_func, D, dt)
-        elif version == 3:
-            prop = get_prop_v3(x_s, force_func, D, dt)
+        # elif version == 3:
+        #     prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
         _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
         if measure == "var":
             num_var = get_var_hist(hists, x_s)
-        elif measure == "quantile":
-            num_var = get_quantile_hist(hists, x_s)
+        # elif measure == "quantile":
+        #     num_var = get_quantile_hist(hists, x_s)
         return {"num_var": num_var}
 
 
@@ -923,8 +923,8 @@ class EigenvectorManager(StorageManager):
             main_evect *= -1
         if measure == "var":
             eig_var = get_var_hist(main_evect[end_states].sum(axis=1), x_s)
-        elif measure == "quantile":
-            eig_var = get_quantile_hist(main_evect[end_states].sum(axis=1), x_s)
+        # elif measure == "quantile":
+        #     eig_var = get_quantile_hist(main_evect[end_states].sum(axis=1), x_s)
 
         return {"eig_var": eig_var}
 
@@ -982,8 +982,8 @@ class SolverRateManager(StorageManager):
             prop = get_prop_v1_1(x_s, force_func, D, dt)
         elif version == 2:
             prop = get_prop_v2_1(x_s, force_func, D, dt)
-        elif version == 3:
-            prop = get_prop_v3(x_s, force_func, D, dt)
+        # elif version == 3:
+        #     prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
         _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
@@ -1008,8 +1008,8 @@ class EigenvectorRateManager(StorageManager):
             prop = get_prop_v1_1(x_s, force_func, D, dt)
         elif version == 2:
             prop = get_prop_v2_1(x_s, force_func, D, dt)
-        elif version == 3:
-            prop = get_prop_v3(x_s, force_func, D, dt)
+        # elif version == 3:
+        #     prop = get_prop_v3(x_s, force_func, D, dt)
 
         R, _, end_states = create_R_v3(ntau, prop)
         evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
