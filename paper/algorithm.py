@@ -136,7 +136,35 @@ def create_R_v3(ntau: int, prop: np.ndarray):
     return R, all_states, end_states
 
 
-def get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states):
+def get_dyn_v2(
+    R: np.ndarray, i_zero: int, N_t: int, N_x: int, ntau: int, end_states: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Interativly solving the equation p = R @ p,
+    with p initialized as initial state and saving
+    one dimensional probability for every step.
+
+    Parameters
+    ----------
+    R : np.ndarray
+        The 2d rate matrix
+    i_zero : int
+        Initial condition
+    N_t : int
+        Number of time steps
+    N_x : int
+        number of spatial steps
+    ntau : int
+        number of temporal discretisation steps
+    end_states : np.ndarray
+        array conating all endstates
+
+    Returns
+    -------
+    p: np.ndarray
+        the final complet statevector
+    one_time_p: np.ndarray
+        The one time probaility function for every timestep
+    """
     initial_state = np.sum(i_zero * (N_x ** np.arange(0, ntau + 1)))
     p = np.zeros(N_x ** (ntau + 1), dtype=float)
     p[initial_state] = 1.0

@@ -14,7 +14,23 @@ from algorithm import get_prop_v1_1, get_prop_v2_1, create_R_v3, get_dyn_v2
 #  Nummerical
 
 
-def get_p_x4_short_time(x, tau):
+def get_p_x4_short_time(x: np.ndarray, tau: float) -> np.ndarray:
+    """Probabilty function derived with
+    small delay approximation for cubic time delay
+    potential.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        The position(s) to evaluate the function
+    tau : float
+        Time delay
+
+    Returns
+    -------
+    np.ndarray
+        The values of the function
+    """
     if tau > 0:
         res = (
             1
