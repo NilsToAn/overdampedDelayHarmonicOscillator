@@ -260,6 +260,8 @@ forces_dict_2: dict[str, Callable] = {
 
 # Classes
 class StorageManager:
+    timing: float = -1.0
+
     def run(self, **kargs):
         myname = self.__class__.__name__
         self.data_dir = Path.cwd() / "database"
@@ -267,9 +269,11 @@ class StorageManager:
         self.overview_file = self.data_dir / f"{myname}.json"
         if (self.overview_file).is_file():
             from_file = json.load(open(self.overview_file, "r"))
-            filenames = [o["filename"] for o in from_file if o["params"] == kargs]
-            if len(filenames) == 1:
-                return pickle.load(open(self.data_dir / filenames[0], "rb"))
+            infos = [o for o in from_file if o["params"] == kargs]
+            if len(infos) == 1:
+                filename = infos[0]["filename"]
+                self.timing = infos[0]["time"]
+                return pickle.load(open(self.data_dir / filename, "rb"))
         else:
             from_file = []
 
@@ -290,9 +294,11 @@ class StorageManager:
         with open(self.data_dir / filename, "wb") as file:
             pickle.dump(result, file)
 
-        from_file.append({"params": kargs, "filename": filename, "time": end - start})
+        timing = end - start
+        from_file.append({"params": kargs, "filename": filename, "time": timing})
         with open(self.overview_file, "w") as file:
             json.dump(from_file, file)
+        self.time = timing
         return result
 
     def main(self, *args, **kargs):
@@ -300,6 +306,9 @@ class StorageManager:
             "ERROR, every class which uses \
               StorageManager should have a run method"
         )
+
+    def get_timing(self):
+        return self.timing
 
 
 class SimulationManager(StorageManager):
