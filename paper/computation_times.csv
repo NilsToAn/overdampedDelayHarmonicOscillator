@@ -1,0 +1,8 @@
+,"N_x = 41, N_t = 2","N_x = 41, N_t = 3","N_x = 81, N_t = 2"
+Simulation setup ,0.083,0.083,0.152
+Simulation Iteration ,0.003,0.003,0.003
+Simulation per interval ,0.096,0.096,0.092
+Numerical setup ,0.627,6.148,8.284
+Numerical Iteration ,0.003,0.177,0.055
+Numerical per interval ,0.006,0.532,0.109
+Steady state overall ,0.982,38.044,13.995

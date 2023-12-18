@@ -1,0 +1,6 @@
+Matrix size: 
+N_x**(2*(ntau+1)) =     2.8e11      5.1e10          4.7e9                   7.9e12
+State_size: 
+N_x**(ntau+1) =         5.3e5       2.3e5           6.9e4                   2.8e6
+Non_zero_matrix: 
+N_x**(ntau+2) =         43e6        14e6            2.8e6                   116e6
