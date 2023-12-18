@@ -1,3 +1,4 @@
+                        41          61              81                N_x = 41 N_t = 3
 Matrix size: 
 N_x**(2*(ntau+1)) =     2.8e11      5.1e10          4.7e9                   7.9e12
 State_size: 
