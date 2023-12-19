@@ -15,6 +15,7 @@ cusp_til_plt_set = {"color": "C6", "marker": "None", "ls": "-.", "label": "time-
 
 
 def setup_matplotlib():
+    """Setup my matplotlib settings"""
     fontsize = 8
 
     pgf_with_latex = {  # setup matplotlib to use latex for output

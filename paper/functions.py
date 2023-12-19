@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import datetime
 
-from algorithm import get_prop_v1_1, get_prop_v2_1, create_R_v3, get_dyn_v2
+from algorithm import get_prop, create_R, get_dyn
 
 
 #  Nummerical
@@ -45,6 +45,26 @@ def get_p_x4_short_time(x: np.ndarray, tau: float) -> np.ndarray:
 
 
 def get_lin_var(tau, a, b, s):
+    r"""Returns the steady state variance for a linear
+    time delayed stachstic system.
+    `\dot{x}(t) = -a x(t) -b x(t - \tau) + s \xi`
+
+    Parameters
+    ----------
+    tau : float
+        Time delay
+    a : float
+        paramter for the no timedelay coupling
+    b : float
+        paramter for the timedelay coupling
+    s : float
+        strength of the noise
+
+    Returns
+    -------
+    float
+        The steady state variance
+    """
     D = 1 / 2 * s**2
     if b > a:
         return (
@@ -73,13 +93,54 @@ def get_lin_var(tau, a, b, s):
 get_lin_var = np.vectorize(get_lin_var, excluded=(1, 2, 3))
 
 
-def get_lin_var_short_time(tau, a, b, s):
+def get_lin_var_small_delay(tau, a, b, s):
+    r"""Returns the small delay approximation of the steady
+    state variance for a linear time delayed stachstic system.
+    `\dot{x}(t) = -a x(t) -b x(t - \tau) + s \xi`
+
+    Parameters
+    ----------
+    tau : float
+        Time delay
+    a : float
+        paramter for the no timedelay coupling
+    b : float
+        paramter for the timedelay coupling
+    s : float
+        strength of the noise
+
+    Returns
+    -------
+    float
+        The steady state variance
+    """
     D = 1 / 2 * s**2
     return D / (a + b) * (1 + b * tau)
 
 
 # Theory
 def l_two_time(a: float, b: float, tau: float, t: float, max_p: int = 40):
+    r"""Calculates the kernel function `\lambda(t)` used for the solution
+    of `\dot{x}(t) = -a x(t) -b x(t - \tau) + s \xi`.
+
+    Parameters
+    ----------
+    a : float
+        non delayed coupling
+    b : float
+        delayed coupling
+    tau : float
+        time delay
+    t : float
+        time point
+    max_p : int, optional
+        highest order to be calculated, by default 40
+
+    Returns
+    -------
+    float
+        value of the kernel function
+    """
     i = np.arange(0, max_p, 1)
     return np.sum(
         (-b) ** i
@@ -94,6 +155,31 @@ l_two_time = np.vectorize(l_two_time)
 
 
 def get_theo_var_l_two_time(ts, tau, D, a=1, b=1):
+    r"""Get analytical time dependend variance for the linear
+    time-delayed stochstaic differential equation
+    `\dot{x}(t) = -a x(t) -b x(t - \tau) + \sqrt{2 D} \xi` by integrating
+    the kernel function.
+
+
+
+    Parameters
+    ----------
+    ts : np.ndarray
+        The timesteps, which are used for integration and at which the variance is evaluated
+    tau : float
+        Time delay
+    D : float
+        Noise strength
+    a : int, optional
+        non time delay coupling, by default 1
+    b : int, optional
+        time delay coupling, by default 1
+
+    Returns
+    -------
+    np.ndarray
+        variance at the timepoints ts
+    """
     if tau > 0:
         dt = ts[1] - ts[0]
         max_p = np.max(ts) / tau
@@ -106,7 +192,30 @@ def get_theo_var_l_two_time(ts, tau, D, a=1, b=1):
         return D / k * (1 - np.exp(-2 * k * ts))
 
 
-def get_eq_times(tau, D, eq_perc, a, b):
+def get_eq_times(tau: float, D: float, eq_perc: float, a: float, b: float):
+    r"""Get the times the linear system descripted by
+    `\dot{x}(t) = -a x(t) -b x(t - \tau) + \sqrt{2D} \xi` takes to
+    reach (eq_perc)% of its it steady state variance. If already
+    calculated load from disk.
+
+    Parameters
+    ----------
+    tau : float
+        time delay
+    D : float
+        Strength of noise
+    eq_perc : float
+        percentage of final variance
+    a : float
+        non time delay coupling
+    b : float
+        time delay coupling
+
+    Returns
+    -------
+    float
+        the equilibration time
+    """
     database_path = Path.cwd() / "database/eq_times.json"
     if database_path.is_file():
         known_eq_times = json.load(open(database_path))
@@ -161,6 +270,35 @@ def simulate_traj_g(
     force: Callable,
     filter: Optional[list[float]] = None,
 ):
+    r"""Simulate trajectories for a given time delayed stachstic
+    system.
+
+    Parameters
+    ----------
+    N_p : int
+        Number of particles
+    N_loop : int
+        Number of runs
+    N_t : int
+        Number interation steps
+    ntau : int
+        time delay in units of dt (N_t in the paper)
+    s : float
+        strength of the noise
+    dt : float
+        temporal resolution
+    x_0 : float
+        inital condition
+    force : Callable
+        force function with two arguments x(t) and x(t - tau)
+    filter : Optional[list[float]], optional
+        All particle moving out of devined filter are set to nan, by default None
+
+    Returns
+    -------
+    np.ndarray
+        all trajectories
+    """
     pos = np.empty((N_loop, N_p, N_t + ntau), dtype=float)
     vel = s * np.random.randn(N_loop, N_p, N_t + ntau - 1) * 1 / np.sqrt(dt)
     pos[:, :, : ntau + 1] = x_0
@@ -174,7 +312,21 @@ def simulate_traj_g(
 
 
 #  General functions
-def get_var_hist(hists, x_s):
+def get_var_hist(hists: np.ndarray, x_s: np.ndarray) -> float:
+    r"""Calculate the variance for a given histogram.
+
+    Parameters
+    ----------
+    hists : np.ndarray
+        the histogram data
+    x_s : np.ndarray
+        the corresponding x values
+
+    Returns
+    -------
+    float
+        the variance
+    """
     if isinstance(hists, list):
         hists = np.stack(hists)
     if hists.ndim == 2:
@@ -188,6 +340,7 @@ def get_var_hist(hists, x_s):
         return np.sum(p * x_s**2) - np.sum(p * x_s) ** 2
     else:
         assert "Wrong number of dim in hists"
+    return np.nan
 
 
 def linear_force_2(x_0, x_t):
@@ -263,6 +416,15 @@ class StorageManager:
     timing: float = -1.0
 
     def run(self, **kargs):
+        """Runs the main function of the child object and returns the result.
+        If the same function was executed with the same parameters, it just loads
+        the result form the hard drive.
+
+        Returns
+        -------
+        dict
+            the result of the function
+        """
         myname = self.__class__.__name__
         self.data_dir = Path.cwd() / "database"
         self.data_dir.mkdir(exist_ok=True)
@@ -308,6 +470,13 @@ class StorageManager:
         )
 
     def get_timing(self):
+        """Gives the time in seconds, it took to calculate the last result.
+
+        Returns
+        -------
+        float
+            time
+        """
         return self.timing
 
 
@@ -327,6 +496,48 @@ class SimulationManager(StorageManager):
         norm_sigma: Optional[bool] = False,
         filter: Optional[list[float]] = None,
     ) -> dict:
+        """Simulate time delay stochastic difertial equation.
+        If the same settings were run before load for hard drive (StorageManager).
+
+        Parameters
+        ----------
+        N_p : int
+            Number of particles per run.
+        N_loop : int
+            Number of runs (used to calc mean and std)
+        N_t : int
+            Number of timesteps
+        N_x : int
+            Number of bins when calculating the histograms
+        ntau : int
+            time delay in units of dt (N_t in the paper)
+        s : float
+            strength of noise
+        dt : float
+            temporal discretisation
+        x_0 : float
+            initial condition
+        force : str
+            name of the force, which is part of `forces_dict_2`
+        hist_sigma : float
+            boundaries for the hist in units of the the calculated variance
+            or if norm_sigma as fixed value.
+        norm_sigma : Optional[bool], optional
+            if true boundaries do not scale with variance, by default False
+        filter : Optional[list[float]], optional
+            particle crossing boundaries of filter are set to np.nan, by default None
+
+        Returns
+        -------
+        dict
+            all results in the form:
+        {
+            "x_s": x_s,
+            "sim_var": sim_var,
+            "sim_hist_var": sim_hist_var,
+            "hist_sum": hist_sum,
+        }
+        """
         pos = simulate_traj_g(
             N_p,
             N_loop,
@@ -363,28 +574,89 @@ class SimulationManager(StorageManager):
 
 
 class SolverManager(StorageManager):
-    def main(self, N_t, N_x, sb, ntau, s, dt, x_0, force, version):
+    def main(
+        self,
+        N_t: int,
+        N_x: int,
+        sb: float,
+        ntau: int,
+        s: float,
+        dt: float,
+        x_0: float,
+        force: str,
+    ) -> dict:
+        r"""Use the dynamical algorithm to solve the dynamic.
+        If the same settings were run before load for hard drive (StorageManager).
+
+        Parameters
+        ----------
+        N_t : int
+            Number of total timesteps
+        N_x : int
+            Number of spatial steps
+        sb : float
+            Distance from the border to the 0.
+        ntau : int
+            time delay in units of dt (in the paper N_t)
+        s : float
+            strength of noise
+        dt : float
+            temporal discretisation
+        x_0 : float
+            initial condition
+        force : str
+            name of the force, which is part of `forces_dict_2`
+
+        Returns
+        -------
+        dict
+            containing the timedependend variance {"num_var": num_var}
+        """
         dx = 2 * sb / (N_x - 1)
         x_s = np.arange(-sb, sb + 1e-6, dx)
-        i_zero = np.argmin((x_s - x_0) ** 2)
+        i_zero = int(np.argmin((x_s - x_0) ** 2))
         D = s**2 / 2
 
         force_func = (
             forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
         )
-        if version == 1:
-            prop = get_prop_v1_1(x_s, force_func, D, dt)
-        elif version == 2:
-            prop = get_prop_v2_1(x_s, force_func, D, dt)
 
-        R, _, end_states = create_R_v3(ntau, prop)
-        _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
+        prop = get_prop(x_s, force_func, D, dt)
+
+        R, _, end_states = create_R(ntau, prop)
+        _, hists = get_dyn(R, i_zero, N_t, N_x, ntau, end_states)
         num_var = get_var_hist(hists, x_s)
         return {"num_var": num_var}
 
 
 class EigenvectorManager(StorageManager):
-    def main(self, N_x, sb, ntau, s, dt, force, version):
+    def main(
+        self, N_x: int, sb: float, ntau: int, s: float, dt: float, force: str
+    ) -> dict:
+        r"""use the steady state version of the algorithm to calculate
+        the stable state configuration, which fullfills the eigenvalue equation.
+        If the same settings were run before load for hard drive (StorageManager).
+
+        Parameters
+        ----------
+        N_x : int
+            Number spatial points
+        sb : float
+            distance of the boundary to 0.
+        ntau : int
+            time delay in units of dt (N_t in the paper)
+        s : float
+            strength of the noise
+        dt : float
+            temporal discretisation
+        force : str
+            name of the force, which is part of `forces_dict_2`
+
+        Returns
+        -------
+        dict
+           steady state variance {"eig_var": eig_var}
+        """
         dx = 2 * sb / (N_x - 1)
         x_s = np.arange(-sb, sb + 1e-6, dx)
         D = s**2 / 2
@@ -392,12 +664,10 @@ class EigenvectorManager(StorageManager):
         force_func = (
             forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
         )
-        if version == 1:
-            prop = get_prop_v1_1(x_s, force_func, D, dt)
-        elif version == 2:
-            prop = get_prop_v2_1(x_s, force_func, D, dt)
 
-        R, _, end_states = create_R_v3(ntau, prop)
+        prop = get_prop(x_s, force_func, D, dt)
+
+        R, _, end_states = create_R(ntau, prop)
         evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
 
         main_evect = np.real(evect[:, 0])
@@ -422,6 +692,38 @@ class SimulateRateManager(StorageManager):
         force: str,
         absorbing: bool = False,
     ) -> dict:
+        """Use a simulation to determin the rate in a potential either crossing the border
+        or getting absorbed at the border.
+        If the same settings were run before load for hard drive (StorageManager).
+
+        Parameters
+        ----------
+        N_p : int
+            Number of particles
+        N_loop : int
+            Number of runs
+        N_t : int
+            Number of timesteps
+        ntau : int
+            Time delay in units of dt (N_t in the paper)
+        s : float
+            Strength of the noise
+        dt : float
+            Temporal discretisation
+        x_0 : float
+            Inital condition
+        border : float
+            position of the border
+        force : str
+            name of the force, which is part of `forces_dict_2`
+        absorbing : bool, optional
+            if true all particles are removed if appraoching the border, by default False
+
+        Returns
+        -------
+        dict
+            The timedepend probabilty to stay in the inital well {"sim_sur": sim_sur}
+        """
         if absorbing:
             filter = [-np.inf, border]
         else:
@@ -448,22 +750,64 @@ class SimulateRateManager(StorageManager):
 
 
 class SolverRateManager(StorageManager):
-    def main(self, N_t, N_x, sbs, ntau, s, dt, x_0, force, border, absorbing, version):
+    def main(
+        self,
+        N_t: int,
+        N_x: int,
+        sbs: list,
+        ntau: int,
+        s: float,
+        dt: float,
+        x_0: float,
+        force: str,
+        border: float,
+        absorbing: bool,
+    ) -> dict:
+        """Use the algorithm to determin the rate in a potential either crossing the border
+        or getting absorbed at the border.
+        If the same settings were run before load for hard drive (StorageManager).
+
+
+        Parameters
+        ----------
+        N_t : int
+            Number of timesteps
+        N_x : int
+            Number of space points
+        sbs : list
+            sbs[0] is left boundary and sbs[1] right boundary
+        ntau : int
+            time delay in units of dt
+        s : float
+            strength of noise
+        dt : float
+            temporal resolution
+        x_0 : float
+            inital condition
+        force : str
+            name of the force, which is part of `forces_dict_2`
+        border : float
+            The position of the border
+        absorbing : bool
+            If absorbing all particles are absorbed at the border
+
+        Returns
+        -------
+        dict
+            The timedepend probabilty to stay in the inital well {"num_sur": num_sur}
+        """
         dx = (sbs[1] - sbs[0]) / (N_x - 1)
         x_s = sbs[0] + np.arange(N_x) * dx
-        i_zero = np.argmin((x_s - x_0) ** 2)
+        i_zero = int(np.argmin((x_s - x_0) ** 2))
         D = s**2 / 2
 
         force_func = (
             forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
         )
-        if version == 1:
-            prop = get_prop_v1_1(x_s, force_func, D, dt)
-        elif version == 2:
-            prop = get_prop_v2_1(x_s, force_func, D, dt)
+        prop = get_prop(x_s, force_func, D, dt)
 
-        R, _, end_states = create_R_v3(ntau, prop)
-        _, hists = get_dyn_v2(R, i_zero, N_t, N_x, ntau, end_states)
+        R, _, end_states = create_R(ntau, prop)
+        _, hists = get_dyn(R, i_zero, N_t, N_x, ntau, end_states)
         if absorbing:
             num_sur = np.sum(hists, axis=1) / np.sum(hists[0])
         else:
@@ -473,7 +817,32 @@ class SolverRateManager(StorageManager):
 
 
 class EigenvectorRateManager(StorageManager):
-    def main(self, N_x, sbs, ntau, s, dt, force, version):
+    def main(
+        self, N_x: int, sbs: list, ntau: int, s: float, dt: float, force: str
+    ) -> dict:
+        """Use the steady state method to determin the rates only possible for
+        absorbing case.
+
+        Parameters
+        ----------
+        N_x : int
+            Number of space points
+        sbs : list
+            sbs[0] is left boundary and sbs[1] right boundary
+        ntau : int
+            time delay in units of dt
+        s : float
+            strength of noise
+        dt : float
+            temporal resolution
+        force : str
+            name of the force, which is part of `forces_dict_2`
+
+        Returns
+        -------
+        dict
+            The steady state rate {"eig_rate": eig_rate}
+        """
         dx = (sbs[1] - sbs[0]) / (N_x - 1)
         x_s = sbs[0] + np.arange(N_x) * dx
         D = s**2 / 2
@@ -481,12 +850,9 @@ class EigenvectorRateManager(StorageManager):
         force_func = (
             forces_dict_2[force] if ntau > 0 else forces_dict_2["no_delay_" + force]
         )
-        if version == 1:
-            prop = get_prop_v1_1(x_s, force_func, D, dt)
-        elif version == 2:
-            prop = get_prop_v2_1(x_s, force_func, D, dt)
+        prop = get_prop(x_s, force_func, D, dt)
 
-        R, _, end_states = create_R_v3(ntau, prop)
+        R, _, end_states = create_R(ntau, prop)
         evals, evect = scipy.sparse.linalg.eigs(R, k=1, which="LR")
 
         main_evect = np.real(evect[:, 0])

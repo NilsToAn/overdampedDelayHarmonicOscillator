@@ -5,50 +5,7 @@ import numpy as np
 from typing import Callable
 
 
-def get_prop_v1_1(
-    x_s: np.ndarray, f: Callable[..., np.ndarray], D: float, dt: float
-) -> np.ndarray:
-    """_summary_
-
-    Parameters
-    ----------
-    x_s : np.ndarray
-        The spatial discritisation
-    f : Callable
-        The function f(x_0, x_t) vectorized
-    D : float
-        Diffusitivity, s**2/2
-    dt : float
-        temporal spacing
-
-    Returns
-    -------
-    np.ndarray
-        x^t_f,x^t_i, x_f, x_i
-    """
-    N_x = len(x_s)
-    dx = x_s[1] - x_s[0]
-    # dim as , x^t_f,x^t_i, x_f, x_i
-
-    p_or_m = np.array([-1.0, 1.0])[None, None, :, None]
-
-    x_i = x_s[None, None, None, :]
-    x_t_i = x_s[None, :, None, None]
-
-    crazy_tensor = np.empty((N_x, N_x, 2, N_x), dtype=float)
-    crazy_tensor[:] = f(x_i, x_t_i)
-    U_raw = D / dx**2 * np.exp(p_or_m * crazy_tensor * dx / (2 * D))
-    U_full = np.zeros([N_x] * 4, dtype=float)
-    U_full[:, :, np.arange(0, N_x, 1), np.arange(0, N_x, 1)] = -(
-        U_raw[:, :, 0, :] + U_raw[:, :, 1, :]
-    )
-    U_full[:, :, np.arange(0, N_x - 1, 1), np.arange(1, N_x, 1)] = U_raw[:, :, 0, 1:]
-    U_full[:, :, np.arange(1, N_x, 1), np.arange(0, N_x - 1, 1)] = U_raw[:, :, 1, :-1]
-    prob = expm(U_full * dt)
-    return prob
-
-
-def get_prop_v2_1(
+def get_prop(
     x_s: np.ndarray, f: Callable[..., np.ndarray], D: float, dt: float
 ) -> np.ndarray:
     """_summary_
@@ -90,7 +47,7 @@ def get_prop_v2_1(
     return prob
 
 
-def create_R_v3(ntau: int, prop: np.ndarray):
+def create_R(ntau: int, prop: np.ndarray):
     """create full 2d transition matrix
 
     Parameters
@@ -136,7 +93,7 @@ def create_R_v3(ntau: int, prop: np.ndarray):
     return R, all_states, end_states
 
 
-def get_dyn_v2(
+def get_dyn(
     R: np.ndarray, i_zero: int, N_t: int, N_x: int, ntau: int, end_states: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
     """Interativly solving the equation p = R @ p,
