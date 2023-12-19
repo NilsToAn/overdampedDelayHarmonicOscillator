@@ -14,7 +14,7 @@ from algorithm import get_prop, create_R, get_dyn
 #  Nummerical
 
 
-def get_p_x4_short_time(x: np.ndarray, tau: float) -> np.ndarray:
+def get_p_x4_small_delay(x: np.ndarray, tau: float) -> np.ndarray:
     """Probabilty function derived with
     small delay approximation for cubic time delay
     potential.
@@ -216,6 +216,7 @@ def get_eq_times(tau: float, D: float, eq_perc: float, a: float, b: float):
     float
         the equilibration time
     """
+    (Path.cwd() / "database/").mkdir(exist_ok=True)
     database_path = Path.cwd() / "database/eq_times.json"
     if database_path.is_file():
         known_eq_times = json.load(open(database_path))
@@ -460,7 +461,7 @@ class StorageManager:
         from_file.append({"params": kargs, "filename": filename, "time": timing})
         with open(self.overview_file, "w") as file:
             json.dump(from_file, file)
-        self.time = timing
+        self.timing = timing
         return result
 
     def main(self, *args, **kargs):
