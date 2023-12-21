@@ -9,6 +9,7 @@ from pathlib import Path
 import datetime
 
 from algorithm import get_prop, create_R, get_dyn
+from scipy.linalg import expm
 
 
 #  Nummerical
@@ -410,6 +411,78 @@ forces_dict_2: dict[str, Callable] = {
     "no_delay_cubic": no_delay_cubic_force_2,
     "no_delay_cusp_force": no_delay_cusp_force_2,
 }
+
+
+def get_prop_tl(
+    x_s: np.ndarray, f: Callable[..., np.ndarray], D: float, dt: float
+) -> np.ndarray:
+    """_summary_
+
+    Parameters
+    ----------
+    x_s : np.ndarray
+        The spatial discritisation
+    f : Callable
+        The function f(x_0, x_t) vectorized
+    D : float
+        Diffusitivity, s**2/2
+    dt : float
+        temporal spacing
+
+    Returns
+    -------
+    np.ndarray
+        x^t_f,x^t_i, x_f, x_i
+    """
+    N_x = len(x_s)
+    dx = x_s[1] - x_s[0]
+    # dim as , x^t_f,x^t_i, x_f, x_i
+
+    p_or_m = np.array([-1.0, 1.0])[:, None]
+    x_step = p_or_m * dx
+    x_i = x_s[None, :]
+    crazy_tensor = f(x_i + x_step / 2)
+    U_raw = D / dx**2 * np.exp(p_or_m * crazy_tensor * dx / (2 * D))
+    U_full = np.zeros([N_x] * 2, dtype=float)
+    U_full[np.arange(0, N_x, 1), np.arange(0, N_x, 1)] = -(U_raw[0, :] + U_raw[1, :])
+    U_full[np.arange(0, N_x - 1, 1), np.arange(1, N_x, 1)] = U_raw[0, 1:]
+    U_full[np.arange(1, N_x, 1), np.arange(0, N_x - 1, 1)] = U_raw[1, :-1]
+    prob = expm(U_full * dt)
+    return prob
+
+
+def get_dyn_tl(R: np.ndarray, i_zero: int, N_t: int, N_x: int) -> np.ndarray:
+    """Interativly solving the equation p = R @ p,
+    with p initialized as initial state and saving
+    one dimensional probability for every step.
+
+    Parameters
+    ----------
+    R : np.ndarray
+        The 2d rate matrix
+    i_zero : int
+        Initial condition
+    N_t : int
+        Number of time steps
+    N_x : int
+        number of spatial steps
+    ntau : int
+        number of temporal discretisation steps
+    end_states : np.ndarray
+        array conating all endstates
+
+    Returns
+    -------
+    p: np.ndarray
+        the final complet statevector
+    one_time_p: np.ndarray
+        The one time probaility function for every timestep
+    """
+    p = np.zeros((N_t, N_x), dtype=float)
+    p[0, i_zero] = 1.0
+    for i in range(1, N_t):
+        p[i] = R @ p[i - 1]
+    return p
 
 
 # Classes
