@@ -69,10 +69,10 @@ def create_R(ntau: int, prop: np.ndarray):
     N_x = prop.shape[-1]
     all_states = np.arange(0, N_x ** (ntau + 1), dtype=int)
 
-    # staetes  1 * x(t-tau), N_x*x(t-tau1+1dt), ... , N_x**ntau * x(t)
+    # states  1 * x(t-tau), N_x*x(t-tau+dt), ... , N_x**ntau * x(t)
     l_t_f = (all_states // N_x) % N_x
     l_t_i = all_states % N_x
-    l_i = all_states // N_x ** (ntau)  # t state
+    l_i = all_states // N_x ** (ntau)
 
     all_next_states = (all_states // N_x)[:, None] + (
         (N_x**ntau) * (np.arange(0, N_x))

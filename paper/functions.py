@@ -12,9 +12,6 @@ from algorithm import get_prop, create_R, get_dyn
 from scipy.linalg import expm
 
 
-#  Nummerical
-
-
 def get_p_x4_small_delay(x: np.ndarray, tau: float) -> np.ndarray:
     """Probabilty function derived with
     small delay approximation for cubic time delay
@@ -119,7 +116,6 @@ def get_lin_var_small_delay(tau, a, b, s):
     return D / (a + b) * (1 + b * tau)
 
 
-# Theory
 def l_two_time(a: float, b: float, tau: float, t: float, max_p: int = 40):
     r"""Calculates the kernel function `\lambda(t)` used for the solution
     of `\dot{x}(t) = -a x(t) -b x(t - \tau) + s \xi`.
