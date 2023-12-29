@@ -1,4 +1,4 @@
-# Code to reproduce results from "Matrix numerical method evaluating probability densities for stochastic delay differential equations"
+### Code to reproduce results from "Matrix numerical method evaluating probability densities for stochastic delay differential equations"
 
 by Nils Antary (1,2), Klaus Kroy (1), and Viktor Holubec (3)
 
@@ -10,7 +10,7 @@ Association, 14473 Potsdam, Germany
 (3) Charles University, Faculty of Mathematics and Physics, Department of
 Macromolecular Physics, CZ-180 00 Praha, Czech Republic
 
-E-mail: nantary@protonmail.com , klaus.kroy@uni-leipzig.de, viktor.holubec@mff.cuni.cz
+E-mail: nantary@protonmail.com, viktor.holubec@mff.cuni.cz
 
 
 This directory contains all the necessary code to reproduce all figures and results from the paper "Matrix numerical method evaluating probability densities for stochastic delay differential equations".
